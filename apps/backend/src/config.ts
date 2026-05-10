@@ -1,100 +1,52 @@
-function requireEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(
-      `Missing required environment variable: ${key}`,
-    );
-  }
-  return value;
-}
+import { z } from "zod";
 
-export interface SarvamSttConfig {
-  model: string;
-  mode: string;
-  languageCode: string;
-  sampleRate: string;
-  inputAudioCodec: string;
-}
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().int().positive().default(3001),
+  REDIS_URL: z.string().min(1),
+  SARVAM_API_KEY: z.string().min(1),
+  ANTHROPIC_API_KEY: z.string().min(1),
+  JWT_SECRET: z.string().min(16),
+  FRONTEND_URL: z.string().url(),
+  WIDGET_ALLOWED_ORIGINS: z.string().default("*"),
+  RAZORPAY_KEY_ID: z.string().optional().default(""),
+  RAZORPAY_KEY_SECRET: z.string().optional().default(""),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional().default(""),
+  /** Tavily — when unset, `web_search` tool is omitted */
+  TAVILY_API_KEY: z.string().optional().default(""),
+  AWS_REGION: z.string().min(2).default("us-east-1"),
+  AWS_ACCESS_KEY_ID: z.string().optional().default(""),
+  AWS_SECRET_ACCESS_KEY: z.string().optional().default(""),
+  /** e.g. `http://localhost:8000` for DynamoDB Local */
+  DYNAMODB_ENDPOINT: z
+    .string()
+    .optional()
+    .transform((s) => (s?.trim() ? s : undefined)),
+  /** Table prefix — tables are `{prefix}Users`, `{prefix}Workspaces`, … */
+  DYNAMODB_TABLE_PREFIX: z.string().min(2).default("VoiceWidget"),
+});
 
-export interface SarvamTtsConfig {
-  model: string;
-  targetLanguageCode: string;
-  speaker: string;
-  pace: number;
-  outputAudioCodec: string;
-  minBufferSize: number;
-  outputAudioBitrate: string;
-}
-
-export interface SarvamLlmConfig {
-  model: string;
-  maxTokens: number;
-  reasoningEffort: string;
-}
-
-export interface GroqLlmConfig {
-  apiKey: string;
-  model: string;
-  maxTokens: number;
-}
-
-export interface SarvamConfig {
-  apiKey: string;
-  stt: SarvamSttConfig;
-  tts: SarvamTtsConfig;
-  llm: SarvamLlmConfig;
-}
-
-export interface AppConfig {
-  port: number;
-  corsOrigin: string;
-  llmProvider: "sarvam" | "groq";
-  sarvam: SarvamConfig;
-  groq: GroqLlmConfig;
-  tavilyApiKey: string;
-  maxAudioChunkDuration: number;
-}
+export type AppConfig = z.infer<typeof envSchema>;
 
 export function loadConfig(): AppConfig {
-  const llmProvider = (process.env.LLM_PROVIDER ??
-    "sarvam") as "sarvam" | "groq";
+  const parsed = envSchema.safeParse(process.env);
+  if (!parsed.success) {
+    const formatted = parsed.error.flatten().fieldErrors;
+    throw new Error(`Invalid env: ${JSON.stringify(formatted)}`);
+  }
+  return Object.freeze(parsed.data);
+}
 
-  return Object.freeze({
-    port: parseInt(process.env.PORT ?? "8880", 10),
-    corsOrigin:
-      process.env.CORS_ORIGIN ?? "http://localhost:5173",
-    llmProvider,
-    sarvam: {
-      apiKey: requireEnv("SARVAM_API_KEY"),
-      stt: {
-        model: "saaras:v3",
-        mode: "transcribe",
-        languageCode: "hi-IN",
-        sampleRate: "16000",
-        inputAudioCodec: "pcm_raw",
-      },
-      tts: {
-        model: "bulbul:v3",
-        targetLanguageCode: "hi-IN",
-        speaker: "shubh",
-        pace: 1,
-        outputAudioCodec: "linear16",
-        minBufferSize: 50,
-        outputAudioBitrate: "192k",
-      },
-      llm: {
-        model: "sarvam-105b",
-        maxTokens: 700,
-        reasoningEffort: "low",
-      },
-    },
-    groq: {
-      apiKey: process.env.GROQ_API_KEY ?? "",
-      model:
-        process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
-      maxTokens: 700,
-    },
-    tavilyApiKey: requireEnv("TAVILY_API_KEY"),
-    maxAudioChunkDuration: 20,
-  });
+export function getCorsOrigins(config: AppConfig): boolean | string[] {
+  const raw = config.WIDGET_ALLOWED_ORIGINS.trim();
+  if (raw === "*") return true;
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+export function dynamoCredentialPair(
+  config: AppConfig,
+): { accessKeyId: string; secretAccessKey: string } | undefined {
+  const a = config.AWS_ACCESS_KEY_ID.trim();
+  const s = config.AWS_SECRET_ACCESS_KEY.trim();
+  return a.length > 0 && s.length > 0 ? { accessKeyId: a, secretAccessKey: s } : undefined;
 }

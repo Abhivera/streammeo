@@ -1,11 +1,26 @@
 import pino from "pino";
+import type { AppConfig } from "./config";
 
-const rootLogger = pino({
-  level: process.env.LOG_LEVEL ?? "info",
-});
+export function createLogger(config: AppConfig, name?: string): pino.Logger {
+  const base =
+    config.NODE_ENV === "development"
+      ? {
+          transport: {
+            target: "pino-pretty",
+            options: {
+              colorize: true,
+              translateTime: "SYS:standard",
+            },
+          } as const,
+        }
+      : {};
 
-export type Logger = pino.Logger;
-
-export function createLogger(tag: string): Logger {
-  return rootLogger.child({ module: tag });
+  return pino(
+    {
+      name,
+      level: config.NODE_ENV === "development" ? "debug" : "info",
+      ...base,
+    },
+    pino.destination(1),
+  );
 }

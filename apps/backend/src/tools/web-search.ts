@@ -1,72 +1,101 @@
-import type { ToolExecutor } from "./registry.ts";
-import { createLogger } from "../logger.ts";
+import type { RegisteredTool } from "./registry";
 
-const log = createLogger("TOOL");
+/** https://docs.tavily.com/docs/tavily-api/rest-api/api-reference **/
+const TAVILY_SEARCH = "https://api.tavily.com/search";
 
-async function tavilySearch(
-  query: string,
-  apiKey: string,
-): Promise<string> {
-  const res = await fetch("https://api.tavily.com/search", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      api_key: apiKey,
-      query,
-      max_results: 3,
-      include_answer: true,
-    }),
-  });
+type TavilyResult = Readonly<{
+  title?: string;
+  url?: string;
+  content?: string;
+}>;
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Tavily API error ${res.status}: ${text}`);
-  }
+type TavilyResponse = Readonly<{
+  results?: TavilyResult[];
+  answer?: string;
+  error?: string;
+}>;
 
-  const data = await res.json();
-  const answer = data.answer || "";
-  const results = (data.results || [])
-    .map(
-      (r: { title: string; content: string; url: string }) =>
-        `${r.title}: ${r.content}`,
-    )
-    .join("\n");
+export function createWebSearchTool(apiKey: string): RegisteredTool {
+  const key = apiKey.trim();
 
-  return answer
-    ? `Answer: ${answer}\n\nSources:\n${results}`
-    : results;
-}
-
-export function createWebSearchTool(tavilyApiKey: string): ToolExecutor {
   return {
-    definition: {
-      type: "function",
-      function: {
-        name: "web_search",
-        description:
-          "Search the web for current information. Use this when the user asks about recent events, news, real-time data, or anything you don't have knowledge about.",
-        parameters: {
-          type: "object",
-          properties: {
-            query: {
-              type: "string",
-              description: "The search query",
-            },
+    anthropic: {
+      name: "web_search",
+      description:
+        "Search the public web for timely or external information (news, competitors, definitions, troubleshooting) when FAQs and order lookup are not enough. Prefer short factual queries.",
+      input_schema: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description:
+              "What to look up (e.g. 'Delhiivery tracking status codes', 'Samsung Galaxy Buds pairing reset')",
           },
-          required: ["query"],
         },
+        required: ["query"],
       },
     },
 
-    async execute(args) {
-      const query = (args.query as string) || "";
+    async execute(input) {
+      const query = String(input.query ?? "").trim();
+      if (!query) {
+        return JSON.stringify({ error: "Missing query", results: [] });
+      }
+
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), 14_000);
+
       try {
-        const searchResult = await tavilySearch(query, tavilyApiKey);
-        log.info({ query }, "Web search completed");
-        return { result: searchResult };
-      } catch (err: any) {
-        log.error({ err, query }, "Web search failed");
-        return { result: JSON.stringify({ error: err.message }) };
+        const res = await fetch(TAVILY_SEARCH, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: ac.signal,
+          body: JSON.stringify({
+            api_key: key,
+            query,
+            search_depth: "basic",
+            include_answer: true,
+            max_results: 5,
+          }),
+        });
+        clearTimeout(t);
+
+        const raw = await res.text();
+        if (!res.ok) {
+          return JSON.stringify({
+            error: `Tavily HTTP ${res.status}`,
+            detail: raw.slice(0, 800),
+          });
+        }
+
+        let data: TavilyResponse = {};
+        try {
+          data = JSON.parse(raw) as TavilyResponse;
+        } catch {
+          return JSON.stringify({
+            error: "Invalid JSON from Tavily",
+            detail: raw.slice(0, 400),
+          });
+        }
+
+        const answer =
+          typeof data.answer === "string" && data.answer.trim().length > 0
+            ? data.answer.trim()
+            : undefined;
+
+        const results = (data.results ?? []).slice(0, 5).map((r) => ({
+          title: r.title ?? "",
+          url: r.url ?? "",
+          snippet: (r.content ?? "").trim().slice(0, 600),
+        }));
+
+        const payload: Record<string, unknown> = { results };
+        if (answer) payload.summary = answer;
+        return JSON.stringify(payload);
+      } catch (err) {
+        clearTimeout(t);
+        const message = err instanceof Error ? err.message : "web_search failed";
+        return JSON.stringify({ error: message, results: [] });
       }
     },
   };

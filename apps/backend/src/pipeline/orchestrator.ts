@@ -1,348 +1,219 @@
-import type { VoiceSession } from "./session.ts";
-import type { ILlmProvider } from "../types/provider.ts";
-import type { SttCallbacks, TtsCallbacks } from "../types/provider.ts";
-import type { ToolRegistry } from "../tools/registry.ts";
-import type { AppConfig } from "../config.ts";
-import { arrayBufferToBase64 } from "../utils/audio.ts";
-import { createLogger } from "../logger.ts";
+import Anthropic from "@anthropic-ai/sdk";
+import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
+import { randomUUID } from "node:crypto";
+import type { Redis } from "ioredis";
+import type { WorkspaceDTO } from "@voicewidget/db";
+import { transcribe } from "./stt";
+import { synthesise, wavChunks } from "./tts";
+import type { VoiceSession } from "./session";
+import { runAssistantStreamingTurn } from "./llm";
+import type { ToolRegistry } from "../tools/registry";
+import type { AppConfig } from "../config";
+import { getStore } from "../db";
+import { createLogger } from "../logger";
+import { workspaceLangToSarvam } from "../lang-map";
+import { usageRedisKey } from "../redis";
 
-const log = createLogger("PIPELINE");
+export type PipelineDeps = Readonly<{
+  config: AppConfig;
+  tools: ToolRegistry;
+  redis: Redis;
+  anthropic: Anthropic;
+}>;
 
-const TOOL_FILLER_MESSAGES = [
-  "एक second, check करता हूँ…",
-  "रुकिए, देखता हूँ…",
-  "बस एक moment…",
-];
+const MAX_TOOL_LOOPS = 8;
 
-/**
- * Wires all components together for a single voice session.
- *
- * Call this AFTER creating the VoiceSession.
- * It sets up the Socket.IO event handlers (audioChunk, disconnect).
- */
-export function initializeSession(
+export async function runPipeline(
+  deps: PipelineDeps,
   session: VoiceSession,
-  llm: ILlmProvider,
-  tools: ToolRegistry,
-  config: AppConfig,
-): void {
-  const { socket } = session;
+  workspace: WorkspaceDTO,
+): Promise<void> {
+  const log = createLogger(deps.config, "pipeline");
+  const locale = workspaceLangToSarvam(workspace.language);
 
-  // ── Socket.IO handlers ──
-  socket.on("audioChunk", (data) => {
-    if (!session.stt.isConnected) return;
+  const wallStart = Date.now();
 
-    if (session.duration > config.maxAudioChunkDuration) {
-      log.info({ duration: session.duration }, "Flushing — duration exceeded");
-      session.stt.flush();
-      socket.emit("transcript", session.dataBuffer);
-      session.dataBuffer = "";
-      if (session.timer) clearInterval(session.timer);
-      session.duration = 0;
-      session.timer = setInterval(() => {
-        session.duration++;
-      }, 1000);
+  try {
+    if (workspace.minutesUsed >= workspace.minutesLimit) {
+      session.socket.emit("error", {
+        message: "Monthly limit reached. Please upgrade.",
+      });
+      session.setState("idle");
+      return;
     }
 
-    session.transcribeCount++;
-    session.stt.transcribe(arrayBufferToBase64(data));
-  });
+    session.setState("processing");
+    session.abortController = new AbortController();
+    const signal = session.abortController.signal;
 
-  socket.on("disconnect", () => {
-    session.destroy();
-    log.info("User disconnected");
-  });
-}
+    const combined = Buffer.concat(session.audioBuffer);
+    session.clearAudio();
 
-/**
- * Creates STT callbacks that drive the pipeline.
- * Must be called before creating the STT provider.
- * `getSession` is a getter because the session doesn't exist yet at callback creation time.
- */
-export function createSttCallbacks(
-  getSession: () => VoiceSession,
-  llm: ILlmProvider,
-  tools: ToolRegistry,
-): SttCallbacks {
-  return {
-    onStartSpeech() {
-      const session = getSession();
-      if (session.timer) clearInterval(session.timer);
+    if (combined.length < 32) {
+      session.socket.emit("error", { message: "No audio captured" });
+      session.setState("idle");
+      return;
+    }
 
-      // Barge-in: cancel active LLM+TTS pipeline
-      if (session.isGenerating) {
-        session.interruptedTranscript = session.lastPipelineTranscript;
-        log.info(
-          { savedTranscript: session.interruptedTranscript },
-          "INTERRUPT — user spoke during AI response, cancelling pipeline",
-        );
+    log.info({ sessionId: session.dbSessionId }, "STT start");
+    const userText = await transcribe(combined, deps.config.SARVAM_API_KEY, locale);
+    log.info({ sessionId: session.dbSessionId, userText }, "STT done");
 
-        session.interrupt();
-        session.tts.close();
-        session.socket.emit("stop-playback");
+    session.socket.emit("transcript", { role: "user", text: userText });
 
-        // Pre-connect fresh TTS for next response
-        session.tts.ensureConnected().catch((err) =>
-          log.error({ err }, "Post-interrupt TTS pre-connect failed"),
-        );
-      }
-
-      session.duration = 0;
-      session.timer = setInterval(() => {
-        session.duration++;
-      }, 1000);
-    },
-
-    onEndSpeech() {
-      const session = getSession();
-      if (session.timer) clearInterval(session.timer);
-      session.timer = null;
-      session.duration = 0;
-      session.endSpeechAt = performance.now();
-
-      if (session.dataBuffer) {
-        session.socket.emit("transcript", session.dataBuffer);
-        session.dataBuffer = "";
-      }
-    },
-
-    async onTranscript(transcript: string) {
-      const session = getSession();
-      session.dataBuffer += transcript;
-
-      const pipelineStart = performance.now();
-      log.info({ transcript }, "STT transcript received");
-
-      if (!transcript.trim()) return;
-
-      // Set up barge-in state
-      session.isGenerating = true;
-      const thisGenerationId = session.nextGeneration();
-      session.lastPipelineTranscript = transcript;
-      session.currentAbortController = new AbortController();
-      session.socket.emit("generation-start", session.generationId);
-
-      // Build user message with interrupted context
-      let userMessage = transcript;
-      if (session.interruptedTranscript) {
-        userMessage = `[User previously said: "${session.interruptedTranscript}" (you were interrupted before finishing your response)]\n\nUser now says: ${transcript}`;
-        log.info(
-          { interruptedContext: session.interruptedTranscript },
-          "Including interrupted context",
-        );
-        session.interruptedTranscript = "";
-      }
-
-      session.addMessage({ role: "user", content: userMessage });
-
-      try {
-        session.pipelineStartForTts = pipelineStart;
-        session.audioChunkCount = 0;
-        await session.tts.ensureConnected();
-
-        await runLlmPipeline(session, llm, tools, thisGenerationId);
-      } catch (err: any) {
-        if (
-          err.name === "AbortError" ||
-          session.currentAbortController?.signal.aborted
-        ) {
-          log.info({ generationId: thisGenerationId }, "Generation aborted by barge-in");
-        } else {
-          log.error({ err, generationId: thisGenerationId }, "Pipeline error");
-          if (thisGenerationId === session.generationId) {
-            session.isGenerating = false;
-            session.currentAbortController = null;
-          }
-        }
-      }
-    },
-
-    onError(err: Error) {
-      const session = getSession();
-      log.error({ err }, "STT error");
-      // Clean up timer (matches old behavior on STT socket close)
-      if (session.timer) {
-        clearInterval(session.timer);
-        session.timer = null;
-      }
-      if (session.dataBuffer) {
-        session.socket.emit("transcript", session.dataBuffer);
-        session.dataBuffer = "";
-      }
-    },
-  };
-}
-
-/**
- * Creates TTS callbacks for audio chunk relay and synthesis tracking.
- * `getSession` is a getter because the session doesn't exist yet.
- */
-export function createTtsCallbacks(
-  getSession: () => VoiceSession,
-): TtsCallbacks {
-  return {
-    onAudioChunk(audioBase64: string) {
-      const session = getSession();
-      session.audioChunkCount++;
-
-      if (session.audioChunkCount === 1) {
-        const sincePipeline = (performance.now() - session.pipelineStartForTts).toFixed(0);
-        log.info({ durationMs: sincePipeline }, "First audio chunk");
-        if (session.endSpeechAt) {
-          const ttfb = (performance.now() - session.endSpeechAt).toFixed(0);
-          log.info({ ttfbMs: ttfb }, "TTFB from END_SPEECH to first audio byte");
-        }
-      }
-
-      session.socket.emit("audio-chunk", {
-        audio: audioBase64,
-        generationId: session.generationId,
-      });
-    },
-
-    onSynthesisComplete() {
-      const session = getSession();
-      const durationMs = (performance.now() - session.pipelineStartForTts).toFixed(0);
-      log.info(
-        { chunks: session.audioChunkCount, durationMs },
-        "Synthesis complete",
-      );
-
-      // Only reset if no tool call loop is in progress
-      if (!session.currentAbortController) {
-        session.isGenerating = false;
-      }
-    },
-
-    onError(err: Error) {
-      log.error({ err }, "TTS error");
-    },
-  };
-}
-
-// ── Internal: LLM pipeline with tool call loop ──
-
-async function runLlmPipeline(
-  session: VoiceSession,
-  llm: ILlmProvider,
-  tools: ToolRegistry,
-  thisGenerationId: number,
-): Promise<void> {
-  let pendingToolCalls = true;
-
-  while (pendingToolCalls) {
-    pendingToolCalls = false;
-    if (thisGenerationId !== session.generationId) break;
-
-    let ttsBuffer = "";
-    let fillerSent = false;
-
-    const result = await llm.streamCompletion({
-      messages: [session.systemMessage, ...session.conversationHistory],
-      tools: tools.getDefinitions(),
-      abortSignal: session.currentAbortController!.signal,
-      onToken: (token) => {
-        if (thisGenerationId !== session.generationId) return;
-
-        session.socket.emit("llm-token", token);
-        ttsBuffer += token;
-
-        // Send to TTS at sentence boundaries
-        if (
-          /[.!?,;:।]\s*$/.test(ttsBuffer) &&
-          ttsBuffer.trim().length >= 20
-        ) {
-          const text = ttsBuffer.trim();
-          log.info({ text }, "Sending TTS chunk");
-          session.tts.convert(text);
-          ttsBuffer = "";
-        }
-      },
-      // Send filler to TTS immediately when first tool call delta arrives
-      onToolCallDetected: () => {
-        if (thisGenerationId !== session.generationId) return;
-        const filler =
-          TOOL_FILLER_MESSAGES[
-            Math.floor(Math.random() * TOOL_FILLER_MESSAGES.length)
-          ]!;
-        log.info({ filler }, "Speaking TTS filler (early)");
-        session.tts.convert(filler);
-        session.tts.flush();
-        fillerSent = true;
-      },
+    const data = getStore();
+    const userMsgId = randomUUID();
+    await data.messages.put({
+      id: userMsgId,
+      sessionId: session.dbSessionId,
+      workspaceId: workspace.id,
+      role: "user",
+      text: userText,
+      audioUrl: null,
+      createdAtMs: Date.now(),
     });
+    await data.sessions.addMessageCount(session.dbSessionId, 1);
 
-    // Handle tool calls
-    if (
-      result.finishReason === "tool_calls" &&
-      result.toolCalls.length > 0 &&
-      thisGenerationId === session.generationId
-    ) {
-      const toolNames = result.toolCalls.map(
-        (t) => `${t.function.name}(${t.function.arguments})`,
+    session.conversation.push({ role: "user", text: userText });
+    session.anthropicTurns.push({ role: "user", content: userText });
+
+    const toolRegistry = deps.tools;
+    const ctx = { workspaceId: workspace.id };
+
+    let finalAssistantText = "";
+
+    for (let turn = 0; turn < MAX_TOOL_LOOPS; turn++) {
+      if (signal.aborted) {
+        session.setState("listening");
+        return;
+      }
+
+      log.info({ sessionId: session.dbSessionId, turn }, "LLM turn start");
+      const outcome = await runAssistantStreamingTurn({
+        client: deps.anthropic,
+        systemPrompt: session.getSystemPrompt(workspace),
+        messages: session.anthropicTurns,
+        tools: toolRegistry.getAnthropicTools(),
+        abortSignal: signal,
+      });
+      log.info(
+        { sessionId: session.dbSessionId, stopReason: outcome.stopReason },
+        "LLM turn done",
       );
-      log.info({ toolCalls: toolNames }, "LLM requested tool calls");
 
-      session.addMessage({
+      session.anthropicTurns.push({
         role: "assistant",
-        content: result.assistantText || "",
-        tool_calls: result.toolCalls,
+        content: outcome.assistantContent as ContentBlockParam[],
       });
 
-      // Execute all tool calls in parallel
-      const toolResults = await Promise.all(
-        result.toolCalls.map(async (tc) => {
-          let args: Record<string, unknown> = {};
-          try {
-            args = JSON.parse(tc.function.arguments);
-          } catch {
-            log.error(
-              { tool: tc.function.name, rawArgs: tc.function.arguments },
-              "Failed to parse tool args",
-            );
-          }
-          const execResult = await tools.execute(tc.function.name, args);
-          return { tool_call_id: tc.id, result: execResult.result };
-        }),
-      );
+      if (outcome.toolUses.length === 0) {
+        finalAssistantText = outcome.assistantText;
+        break;
+      }
 
-      for (const tr of toolResults) {
-        log.info({ toolCallId: tr.tool_call_id, result: tr.result }, "Tool result");
-        session.addMessage({
-          role: "tool",
-          tool_call_id: tr.tool_call_id,
-          content: tr.result,
+      const toolResultBlocks: ContentBlockParam[] = [];
+      for (const tu of outcome.toolUses) {
+        const outputText = await toolRegistry.execute(tu.name, tu.input, ctx);
+        await data.toolCalls.put({
+          id: randomUUID(),
+          sessionId: session.dbSessionId,
+          toolName: tu.name,
+          input: tu.input as Record<string, unknown>,
+          output: { result: outputText },
+          createdAtMs: Date.now(),
+        });
+        toolResultBlocks.push({
+          type: "tool_result",
+          tool_use_id: tu.id,
+          content: outputText,
         });
       }
 
-      pendingToolCalls = true;
-      continue;
-    }
-
-    // Normal text response
-    if (result.assistantText) {
-      session.addMessage({
-        role: "assistant",
-        content: result.assistantText,
+      session.anthropicTurns.push({
+        role: "user",
+        content: toolResultBlocks,
       });
-    }
 
-    if (thisGenerationId === session.generationId) {
-      if (result.tokenCount === 0) {
-        log.info("No tokens received, skipping TTS");
-        session.isGenerating = false;
-        session.currentAbortController = null;
-      } else {
-        const remaining = ttsBuffer.trim();
-        if (remaining) {
-          log.info({ text: remaining }, "Sending final TTS chunk");
-          session.tts.convert(remaining);
-        }
-        session.tts.flush();
-        // Null out controller so TTS onSynthesisComplete can reset isGenerating
-        session.currentAbortController = null;
-        log.info("TTS flushed — waiting for audio chunks");
+      if (turn === MAX_TOOL_LOOPS - 1) {
+        log.warn({ sessionId: session.dbSessionId }, "tool loop cap reached");
+        finalAssistantText =
+          "I'm having trouble finishing that lookup. Please try again in a moment.";
+        break;
       }
     }
+
+    if (!finalAssistantText.trim()) {
+      finalAssistantText = "I'm sorry, I couldn't find an answer just now.";
+    }
+
+    session.setState("speaking");
+
+    if (signal.aborted) {
+      session.setState("listening");
+      return;
+    }
+
+    log.info({ sessionId: session.dbSessionId }, "TTS start");
+    const audioBuf = await synthesise(
+      finalAssistantText,
+      deps.config.SARVAM_API_KEY,
+      locale,
+      signal,
+    );
+    log.info(
+      { sessionId: session.dbSessionId, bytes: audioBuf.length },
+      "TTS done",
+    );
+
+    for (const chunk of wavChunks(audioBuf)) {
+      if (signal.aborted) break;
+      session.socket.emit("audio", chunk);
+    }
+
+    session.socket.emit("transcript", { role: "assistant", text: finalAssistantText });
+
+    const asstMsgId = randomUUID();
+    await data.messages.put({
+      id: asstMsgId,
+      sessionId: session.dbSessionId,
+      workspaceId: workspace.id,
+      role: "assistant",
+      text: finalAssistantText,
+      audioUrl: null,
+      createdAtMs: Date.now(),
+    });
+    await data.sessions.addMessageCount(session.dbSessionId, 1);
+
+    session.conversation.push({ role: "assistant", text: finalAssistantText });
+
+    const durationSec = Math.max(0, Math.round((Date.now() - wallStart) / 1000));
+    const minuteDelta = Math.ceil(durationSec / 60);
+
+    const fresh = await data.finalizeVoiceTurn({
+      sessionId: session.dbSessionId,
+      workspaceId: workspace.id,
+      endedAt: new Date().toISOString(),
+      durationSec,
+      minuteDelta,
+    });
+
+    await deps.redis
+      .incrby(usageRedisKey(workspace.id), durationSec)
+      .catch((err: unknown) => log.error({ err }, "redis usage increment failed"));
+
+    session.socket.emit("usage", {
+      minutesUsed: fresh?.minutesUsed ?? workspace.minutesUsed + minuteDelta,
+      minutesLimit: fresh?.minutesLimit ?? workspace.minutesLimit,
+    });
+
+    session.abortController = null;
+    session.setState("idle");
+  } catch (err) {
+    log.error({ err, sessionId: session.dbSessionId }, "pipeline error");
+    const message =
+      err instanceof Error ? err.message : "Something went wrong. Please try again.";
+    session.socket.emit("error", { message });
+    session.abortController = null;
+    session.setState("idle");
   }
 }

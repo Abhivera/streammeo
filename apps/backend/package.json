@@ -1,25 +1,40 @@
 {
-  "name": "@audio-agent/backend",
+  "name": "@voicewidget/backend",
   "private": true,
+  "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": ">=22",
-    "npm": ">=10"
+    "node": ">=20"
   },
   "scripts": {
     "dev": "tsx watch --env-file=.env src/index.ts",
-    "start": "tsx --env-file=.env src/index.ts"
+    "start": "tsx --env-file=.env src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "express": "^5.2.1",
-    "pino": "^10.3.1",
-    "sarvamai": "^1.1.6",
-    "socket.io": "^4.8.3"
+    "@anthropic-ai/sdk": "^0.52.0",
+    "@voicewidget/db": "workspace:*",
+    "@voicewidget/shared": "workspace:*",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "ioredis": "^5.4.2",
+    "jsonwebtoken": "^9.0.2",
+    "pino": "^9.6.0",
+    "razorpay": "^2.9.6",
+    "socket.io": "^4.8.1",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/node": "^25.5.0",
-    "tsx": "^4.21.0",
-    "typescript": "^5.0.0"
+    "@types/bcrypt": "^5.0.2",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.7",
+    "pino-pretty": "^13.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
   }
 }

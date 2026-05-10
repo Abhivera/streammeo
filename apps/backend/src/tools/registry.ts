@@ -1,37 +1,42 @@
-import type { ToolDefinition } from "../types/provider.ts";
-import { createLogger } from "../logger.ts";
+import type { Tool } from "@anthropic-ai/sdk/resources/messages";
+import pino from "pino";
 
-const log = createLogger("TOOL");
+const log = pino({ name: "tool", level: "info" });
 
-export interface ToolExecutor {
-  definition: ToolDefinition;
-  execute: (args: Record<string, unknown>) => Promise<{ result: string }>;
+export type ToolContext = Readonly<{
+  workspaceId: string;
+}>;
+
+export interface RegisteredTool {
+  anthropic: Tool;
+  execute: (
+    input: Record<string, unknown>,
+    ctx: ToolContext,
+  ) => Promise<string>;
 }
 
 export class ToolRegistry {
-  private executors = new Map<string, ToolExecutor>();
+  private tools = new Map<string, RegisteredTool>();
 
-  register(executor: ToolExecutor): void {
-    const name = executor.definition.function.name;
-    this.executors.set(name, executor);
-    log.info({ tool: name }, "Registered tool");
+  register(tool: RegisteredTool): void {
+    this.tools.set(tool.anthropic.name, tool);
+    log.info({ tool: tool.anthropic.name }, "Registered tool");
   }
 
-  getDefinitions(): ToolDefinition[] {
-    return Array.from(this.executors.values()).map((e) => e.definition);
+  getAnthropicTools(): Tool[] {
+    return [...this.tools.values()].map((t) => t.anthropic);
   }
 
   async execute(
     name: string,
-    args: Record<string, unknown>,
-  ): Promise<{ result: string }> {
-    const executor = this.executors.get(name);
-    if (!executor) {
-      log.error({ tool: name }, "Unknown tool");
-      return { result: JSON.stringify({ error: `Unknown tool: ${name}` }) };
+    input: Record<string, unknown>,
+    ctx: ToolContext,
+  ): Promise<string> {
+    const tool = this.tools.get(name);
+    if (!tool) {
+      return JSON.stringify({ error: `Unknown tool: ${name}` });
     }
-
-    log.info({ tool: name, args }, "Executing tool");
-    return executor.execute(args);
+    log.info({ tool: name, workspaceId: ctx.workspaceId }, "Executing tool");
+    return tool.execute(input, ctx);
   }
 }

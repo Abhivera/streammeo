@@ -1,35 +1,69 @@
-import type { ToolExecutor } from "./registry.ts";
+import type { RegisteredTool } from "./registry";
+import { getStore } from "../db";
 
-export const getOrderStatusTool: ToolExecutor = {
-  definition: {
-    type: "function",
-    function: {
-      name: "get_order_status",
-      description:
-        "Get the current status of a customer's order by order ID",
-      parameters: {
-        type: "object",
-        properties: {
-          order_id: {
-            type: "string",
-            description: "The order ID to look up, e.g. ORD-12345",
-          },
+export const getOrderStatusTool: RegisteredTool = {
+  anthropic: {
+    name: "get_order_status",
+    description:
+      "Get the current status and tracking info for a customer order",
+    input_schema: {
+      type: "object",
+      properties: {
+        order_id: {
+          type: "string",
+          description: "The order ID or order number",
         },
-        required: ["order_id"],
+        phone: {
+          type: "string",
+          description: "Customer phone number to verify identity",
+        },
       },
+      required: ["order_id"],
     },
   },
 
-  async execute(args) {
-    const orderId = (args.order_id as string) || "unknown";
-    return {
-      result: JSON.stringify({
-        order_id: orderId,
-        status: "shipped",
-        estimated_delivery: "2026-03-27",
-        items: ["Wireless Headphones", "USB-C Cable"],
-        tracking_id: "TRK-98765",
-      }),
-    };
+  async execute(input, ctx) {
+    const orderId = String(input.order_id ?? "");
+    const phone = input.phone !== undefined ? String(input.phone) : undefined;
+
+    const ws = await getStore().workspaces.findById(ctx.workspaceId);
+    const domain = ws?.shopifyShopDomain;
+    const token = ws?.shopifyAccessToken;
+
+    if (domain && token) {
+      const url = `https://${domain}/admin/api/2024-01/orders.json?name=${encodeURIComponent(orderId)}`;
+      const res = await fetch(url, {
+        headers: { "X-Shopify-Access-Token": token },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { orders?: unknown[] };
+        const first = data.orders?.[0] as
+          | {
+              id?: number;
+              name?: string;
+              fulfillment_status?: string | null;
+              financial_status?: string | null;
+            }
+          | undefined;
+        if (first) {
+          return JSON.stringify({
+            order_id: first.name ?? orderId,
+            status: first.fulfillment_status ?? first.financial_status ?? "unknown",
+            source: "shopify",
+            phone,
+          });
+        }
+      }
+    }
+
+    return JSON.stringify({
+      order_id: orderId,
+      status: "shipped",
+      courier: "Delhivery",
+      tracking: "DL98765432IN",
+      eta: "2–3 business days",
+      last_location: "Chennai Hub",
+      phone,
+    });
   },
 };

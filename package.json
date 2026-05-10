@@ -1,16 +1,20 @@
 {
-  "name": "streammeo",
+  "name": "voicewidget",
   "private": true,
-  "packageManager": "npm@10",
-  "workspaces": [
-    "apps/*"
-  ],
+  "packageManager": "pnpm@9.14.4",
   "engines": {
-    "node": ">=22",
-    "npm": ">=10"
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.758.0",
+    "@aws-sdk/lib-dynamodb": "^3.758.0"
   },
   "scripts": {
-    "dev:backend": "npm run dev --workspace @audio-agent/backend",
-    "dev:frontend": "npm run dev --workspace @audio-agent/frontend"
+    "dev:backend": "pnpm --filter @voicewidget/backend dev",
+    "dev:frontend": "pnpm --filter @voicewidget/frontend dev",
+    "dev:widget": "pnpm --filter @voicewidget/widget dev",
+    "build": "pnpm -r run build",
+    "db:seed": "pnpm --filter @voicewidget/db seed",
+    "lint": "pnpm --filter @voicewidget/backend lint && pnpm --filter @voicewidget/frontend lint"
   }
 }
