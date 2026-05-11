@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
-import type { MessageDTO, SessionCursor, VoiceWidgetStore } from "@voicewidget/db";
+import type { MessageDTO, SessionCursor, StreammeoStore } from "@streammeo/db";
 import { z } from "zod";
 import type { AppConfig } from "../config";
 import { getStore } from "../db";
@@ -11,7 +11,7 @@ import { testShopifyCredentials } from "../integrations/shopify";
 
 const patchSchema = z.object({
   name: z.string().min(1).optional(),
-  language: z.enum(["ta", "hi", "en"]).optional(),
+  language: z.literal("en").optional(),
   agentName: z.string().min(1).optional(),
   systemPrompt: z.string().min(1).optional(),
 });
@@ -30,10 +30,18 @@ function decodeCursor(q: unknown): SessionCursor | undefined {
   if (typeof q !== "string" || !q) return undefined;
   try {
     const parsed: unknown = JSON.parse(Buffer.from(q, "base64url").toString("utf8"));
-    return parsed !== null &&
-      typeof parsed === "object"
-      ? (parsed as SessionCursor)
-      : undefined;
+    if (
+      parsed !== null &&
+      typeof parsed === "object" &&
+      "startedAt" in parsed &&
+      "id" in parsed
+    ) {
+      const c = parsed as { startedAt: unknown; id: unknown };
+      if (typeof c.startedAt === "number" && typeof c.id === "string") {
+        return { startedAt: c.startedAt, id: c.id };
+      }
+    }
+    return undefined;
   } catch {
     return undefined;
   }
@@ -47,7 +55,7 @@ export function createWorkspaceRouter(config: AppConfig): Router {
   const router = Router();
   router.use(createAuthMiddleware(config));
   const log = createLogger(config, "workspace");
-  const store = (): VoiceWidgetStore => getStore();
+  const store = (): StreammeoStore => getStore();
 
   router.get("/", async (req, res) => {
     const ws = await store().workspaces.findById(req.auth!.workspaceId);
@@ -182,7 +190,6 @@ export function createWorkspaceRouter(config: AppConfig): Router {
         : 0,
       topQuestions,
       minutesUsed: ws?.minutesUsed ?? 0,
-      minutesLimit: ws?.minutesLimit ?? 500,
     });
   });
 

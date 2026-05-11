@@ -5,9 +5,7 @@ export interface Workspace {
   language: string;
   agentName: string;
   systemPrompt: string;
-  plan: string;
   minutesUsed: number;
-  minutesLimit: number;
   createdAt: string;
 }
 

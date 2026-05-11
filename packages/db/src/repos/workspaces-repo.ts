@@ -1,12 +1,5 @@
-import {
-  GetCommand,
-  PutCommand,
-  QueryCommand,
-  UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
-import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import type { Database } from "better-sqlite3";
 import type { WorkspaceDTO } from "../entities";
-import { GSI } from "../dynamo/keys";
 import { toWorkspaceDTO } from "../mappers";
 
 export type WorkspacePatch = Partial<
@@ -24,108 +17,106 @@ export type WorkspacePatch = Partial<
   >
 >;
 
+const workspaceSelect = `
+  SELECT
+    id,
+    name,
+    api_key AS apiKey,
+    language,
+    agent_name AS agentName,
+    system_prompt AS systemPrompt,
+    plan,
+    minutes_used AS minutesUsed,
+    minutes_limit AS minutesLimit,
+    owner_id AS ownerId,
+    shopify_shop_domain AS shopifyShopDomain,
+    shopify_access_token AS shopifyAccessToken,
+    session_count AS sessionCount,
+    created_at AS createdAt
+  FROM workspaces
+`;
+
 export class WorkspacesRepo {
-  constructor(
-    private readonly doc: DynamoDBDocumentClient,
-    private readonly table: string,
-  ) {}
+  constructor(private readonly db: Database) {}
 
   async findById(id: string): Promise<WorkspaceDTO | null> {
-    const res = await this.doc.send(
-      new GetCommand({ TableName: this.table, Key: { id } }),
-    );
-    const r = res.Item;
-    return r ? toWorkspaceDTO(r as Record<string, unknown>) : null;
+    const row = this.db.prepare(`${workspaceSelect} WHERE id = ?`).get(id) as
+      | Record<string, unknown>
+      | undefined;
+    return row ? toWorkspaceDTO(row) : null;
   }
 
   async findByApiKey(apiKey: string): Promise<WorkspaceDTO | null> {
-    const res = await this.doc.send(
-      new QueryCommand({
-        TableName: this.table,
-        IndexName: GSI.workspaceApiKey,
-        KeyConditionExpression: "apiKey = :k",
-        ExpressionAttributeValues: { ":k": apiKey },
-        Limit: 1,
-      }),
-    );
-    const r = res.Items?.[0];
-    return r ? toWorkspaceDTO(r as Record<string, unknown>) : null;
+    const row = this.db.prepare(`${workspaceSelect} WHERE api_key = ?`).get(apiKey) as
+      | Record<string, unknown>
+      | undefined;
+    return row ? toWorkspaceDTO(row) : null;
   }
 
   async listByOwner(ownerId: string): Promise<WorkspaceDTO[]> {
-    const out: WorkspaceDTO[] = [];
-    let startKey: Record<string, unknown> | undefined;
-    do {
-      const res = await this.doc.send(
-        new QueryCommand({
-          TableName: this.table,
-          IndexName: GSI.workspaceOwner,
-          KeyConditionExpression: "ownerId = :o",
-          ExpressionAttributeValues: { ":o": ownerId },
-          ExclusiveStartKey: startKey as never,
-        }),
-      );
-      for (const item of res.Items ?? []) {
-        out.push(toWorkspaceDTO(item as Record<string, unknown>));
-      }
-      startKey = res.LastEvaluatedKey as Record<string, unknown> | undefined;
-    } while (startKey);
-    return out;
+    const rows = this.db
+      .prepare(`${workspaceSelect} WHERE owner_id = ? ORDER BY created_at ASC`)
+      .all(ownerId) as Record<string, unknown>[];
+    return rows.map((r) => toWorkspaceDTO(r));
   }
 
   async put(ws: Readonly<Omit<WorkspaceDTO, "createdAt">> & { createdAt: string }): Promise<void> {
-    await this.doc.send(
-      new PutCommand({
-        TableName: this.table,
-        Item: {
-          id: ws.id,
-          name: ws.name,
-          apiKey: ws.apiKey,
-          language: ws.language,
-          agentName: ws.agentName,
-          systemPrompt: ws.systemPrompt,
-          plan: ws.plan,
-          minutesUsed: ws.minutesUsed,
-          minutesLimit: ws.minutesLimit,
-          ownerId: ws.ownerId,
-          shopifyShopDomain: ws.shopifyShopDomain,
-          shopifyAccessToken: ws.shopifyAccessToken,
-          createdAt: ws.createdAt,
-          sessionCount: 0,
-        },
-        ConditionExpression: "attribute_not_exists(id)",
-      }),
-    );
+    this.db
+      .prepare(
+        `
+      INSERT INTO workspaces (
+        id, name, api_key, language, agent_name, system_prompt, plan,
+        minutes_used, minutes_limit, owner_id, shopify_shop_domain, shopify_access_token,
+        session_count, created_at
+      ) VALUES (
+        @id, @name, @apiKey, @language, @agentName, @systemPrompt, @plan,
+        @minutesUsed, @minutesLimit, @ownerId, @shopifyShopDomain, @shopifyAccessToken,
+        0, @createdAt
+      )
+    `,
+      )
+      .run({
+        id: ws.id,
+        name: ws.name,
+        apiKey: ws.apiKey,
+        language: ws.language,
+        agentName: ws.agentName,
+        systemPrompt: ws.systemPrompt,
+        plan: ws.plan,
+        minutesUsed: ws.minutesUsed,
+        minutesLimit: ws.minutesLimit,
+        ownerId: ws.ownerId,
+        shopifyShopDomain: ws.shopifyShopDomain,
+        shopifyAccessToken: ws.shopifyAccessToken,
+        createdAt: ws.createdAt,
+      });
   }
 
   async update(id: string, patch: WorkspacePatch): Promise<WorkspaceDTO | null> {
+    const colMap: Record<keyof WorkspacePatch, string> = {
+      name: "name",
+      language: "language",
+      agentName: "agent_name",
+      systemPrompt: "system_prompt",
+      plan: "plan",
+      minutesLimit: "minutes_limit",
+      minutesUsed: "minutes_used",
+      shopifyShopDomain: "shopify_shop_domain",
+      shopifyAccessToken: "shopify_access_token",
+    };
+
     const keys = Object.keys(patch).filter(
       (k) => patch[k as keyof WorkspacePatch] !== undefined,
     ) as (keyof WorkspacePatch)[];
     if (keys.length === 0) return this.findById(id);
 
-    const names: Record<string, string> = {};
-    const values: Record<string, unknown> = {};
-    const parts: string[] = [];
-    keys.forEach((k, i) => {
-      const nk = `#f${i}`;
-      const vk = `:v${i}`;
-      names[nk] = k;
-      parts.push(`${nk} = ${vk}`);
-      values[vk] = patch[k];
-    });
+    const sets = keys.map((k) => `${colMap[k]} = @${String(k)}`).join(", ");
+    const params: Record<string, unknown> = { id };
+    for (const k of keys) {
+      params[String(k)] = patch[k];
+    }
 
-    const res = await this.doc.send(
-      new UpdateCommand({
-        TableName: this.table,
-        Key: { id },
-        UpdateExpression: `SET ${parts.join(", ")}`,
-        ExpressionAttributeNames: names,
-        ExpressionAttributeValues: values,
-        ReturnValues: "ALL_NEW",
-      }),
-    );
-    const r = res.Attributes;
-    return r ? toWorkspaceDTO(r as Record<string, unknown>) : null;
+    this.db.prepare(`UPDATE workspaces SET ${sets} WHERE id = @id`).run(params);
+    return this.findById(id);
   }
 }

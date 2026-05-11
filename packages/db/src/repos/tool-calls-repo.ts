@@ -1,46 +1,58 @@
-import { PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import type { Database } from "better-sqlite3";
 import type { ToolCallDTO } from "../entities";
 import { toToolCallDTO } from "../mappers";
 
 export class ToolCallsRepo {
-  constructor(
-    private readonly doc: DynamoDBDocumentClient,
-    private readonly table: string,
-  ) {}
+  constructor(private readonly db: Database) {}
 
   async put(
     tc: Readonly<Omit<ToolCallDTO, "createdAt">> & { createdAtMs: number },
   ): Promise<void> {
-    await this.doc.send(
-      new PutCommand({
-        TableName: this.table,
-        Item: {
-          sessionId: tc.sessionId,
-          id: tc.id,
-          toolName: tc.toolName,
-          input: tc.input,
-          output: tc.output,
-          createdAt: tc.createdAtMs,
-        },
-      }),
-    );
+    this.db
+      .prepare(
+        `
+      INSERT INTO tool_calls (id, session_id, tool_name, input_json, output_json, created_at)
+      VALUES (@id, @sessionId, @toolName, @inputJson, @outputJson, @createdAt)
+    `,
+      )
+      .run({
+        id: tc.id,
+        sessionId: tc.sessionId,
+        toolName: tc.toolName,
+        inputJson: JSON.stringify(tc.input),
+        outputJson: JSON.stringify(tc.output),
+        createdAt: tc.createdAtMs,
+      });
   }
 
   async listForSessionAscending(sessionId: string): Promise<ToolCallDTO[]> {
-    const res = await this.doc.send(
-      new QueryCommand({
-        TableName: this.table,
-        KeyConditionExpression: "sessionId = :s",
-        ExpressionAttributeValues: { ":s": sessionId },
-      }),
-    );
-    const rows = (res.Items ?? []).map((it) =>
-      toToolCallDTO(it as Record<string, unknown>),
-    );
-    rows.sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    );
-    return rows;
+    const rows = this.db
+      .prepare(
+        `
+      SELECT
+        id,
+        session_id AS sessionId,
+        tool_name AS toolName,
+        input_json AS inputJson,
+        output_json AS outputJson,
+        created_at AS createdAt
+      FROM tool_calls
+      WHERE session_id = ?
+      ORDER BY created_at ASC, id ASC
+    `,
+      )
+      .all(sessionId) as Record<string, unknown>[];
+    return rows.map((it) => {
+      const input = JSON.parse(String(it.inputJson ?? "{}")) as Record<string, unknown>;
+      const output = JSON.parse(String(it.outputJson ?? "{}")) as Record<string, unknown>;
+      return toToolCallDTO({
+        id: it.id,
+        sessionId: it.sessionId,
+        toolName: it.toolName,
+        input,
+        output,
+        createdAt: it.createdAt,
+      });
+    });
   }
 }

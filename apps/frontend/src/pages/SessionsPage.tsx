@@ -5,7 +5,7 @@ import { api } from "../api/client";
 import type { SessionRow } from "../types";
 
 export function SessionsPage(): ReactElement {
-  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [sessions, setSessions] = useState<SessionRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -20,56 +20,83 @@ export function SessionsPage(): ReactElement {
     void load();
   }, []);
 
-  if (error)
-    return <div className="rounded-lg border border-rose-500/40 p-4 text-rose-200">{error}</div>;
+  if (error) {
+    return (
+      <div className="vw-panel max-w-xl border-vw-danger-edge p-4 text-sm text-vw-danger-soft" role="alert">
+        {error}
+      </div>
+    );
+  }
+
+  if (sessions === null) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-6" aria-busy="true" aria-label="Loading sessions">
+        <div className="h-8 w-40 animate-pulse rounded-lg bg-vw-elevated" />
+        <div className="h-4 w-64 animate-pulse rounded bg-vw-elevated" />
+        <div className="h-72 animate-pulse rounded-xl bg-vw-elevated" />
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Sessions</h1>
-        <p className="text-sm text-slate-400">Customer voice transcripts and tooling.</p>
-      </div>
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/50">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead className="text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="border-b border-slate-800 px-4 py-2">Started</th>
-              <th className="border-b border-slate-800 px-4 py-2">Duration</th>
-              <th className="border-b border-slate-800 px-4 py-2">Messages</th>
-              <th className="border-b border-slate-800 px-4 py-2">Resolved</th>
-              <th className="border-b border-slate-800 px-4 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {sessions.map((s) => (
-              <tr key={s.id} className="hover:bg-slate-800/60">
-                <td className="border-b border-slate-900 px-4 py-2 text-slate-300">
-                  {new Date(s.startedAt).toLocaleString()}
-                </td>
-                <td className="border-b border-slate-900 px-4 py-2 text-slate-300">
-                  {s.durationSec}s
-                </td>
-                <td className="border-b border-slate-900 px-4 py-2 text-slate-300">
-                  {s.messageCount}
-                </td>
-                <td className="border-b border-slate-900 px-4 py-2">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs ${
-                      s.resolved ? "bg-emerald-900/70 text-emerald-200" : "bg-slate-800 text-slate-400"
-                    }`}
-                  >
-                    {s.resolved ? "Resolved" : "Open"}
-                  </span>
-                </td>
-                <td className="border-b border-slate-900 px-4 py-2 text-right">
-                  <Link className="text-violet-300 hover:underline" to={`/sessions/${s.id}`}>
-                    Detail
-                  </Link>
-                </td>
+    <div className="mx-auto flex max-w-5xl flex-col gap-8">
+      <header>
+        <h1 className="vw-page-title">Sessions</h1>
+        <p className="vw-page-lede">Support transcripts and tool usage from the voice widget (deflection and follow-up).</p>
+      </header>
+      <div className="vw-panel overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[36rem] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-vw-border bg-vw-table-tint">
+                <th className="vw-table-head px-4 py-3 sm:px-5">Started</th>
+                <th className="vw-table-head px-4 py-3 sm:px-5">Duration</th>
+                <th className="vw-table-head px-4 py-3 sm:px-5">Messages</th>
+                <th className="vw-table-head px-4 py-3 sm:px-5">Resolved</th>
+                <th className="vw-table-head px-4 py-3 sm:px-5" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sessions.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-12 text-center text-sm text-vw-muted sm:px-5">
+                    No sessions yet. When customers use voice support, rows appear here.
+                  </td>
+                </tr>
+              ) : (
+                sessions.map((s) => (
+                  <tr
+                    key={s.id}
+                    className="border-b border-vw-border-faint transition-colors duration-vw ease-out-expo hover:bg-vw-elevated-hover"
+                  >
+                    <td className="px-4 py-3 tabular-nums text-vw-fg-soft sm:px-5">
+                      {new Date(s.startedAt).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 tabular-nums text-vw-fg-soft sm:px-5">{s.durationSec}s</td>
+                    <td className="px-4 py-3 tabular-nums text-vw-fg-soft sm:px-5">{s.messageCount}</td>
+                    <td className="px-4 py-3 sm:px-5">
+                      <span
+                        className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${
+                          s.resolved ? "bg-vw-success-soft text-vw-success-fg" : "bg-vw-elevated text-vw-muted"
+                        }`}
+                      >
+                        {s.resolved ? "Resolved" : "Open"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right sm:px-5">
+                      <Link
+                        className="font-medium text-vw-accent transition-colors duration-vw ease-out-expo hover:text-vw-accent-hover"
+                        to={`/sessions/${s.id}`}
+                      >
+                        Detail
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

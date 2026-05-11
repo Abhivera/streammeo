@@ -1,12 +1,5 @@
-import {
-  DeleteCommand,
-  GetCommand,
-  PutCommand,
-  QueryCommand,
-} from "@aws-sdk/lib-dynamodb";
-import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import type { Database } from "better-sqlite3";
 import type { UserDTO } from "../entities";
-import { GSI } from "../dynamo/keys";
 import { toUserDTO } from "../mappers";
 
 function normEmail(e: string): string {
@@ -14,57 +7,40 @@ function normEmail(e: string): string {
 }
 
 export class UsersRepo {
-  constructor(
-    private readonly doc: DynamoDBDocumentClient,
-    private readonly table: string,
-  ) {}
+  constructor(private readonly db: Database) {}
 
   async findById(id: string): Promise<UserDTO | null> {
-    const res = await this.doc.send(
-      new QueryCommand({
-        TableName: this.table,
-        IndexName: GSI.userByStableId,
-        KeyConditionExpression: "id = :i",
-        ExpressionAttributeValues: { ":i": id },
-        Limit: 1,
-      }),
-    );
-    const r = res.Items?.[0];
-    return r ? toUserDTO(r as Record<string, unknown>) : null;
+    const row = this.db
+      .prepare(
+        `SELECT id, email, password, created_at AS createdAt FROM users WHERE id = ?`,
+      )
+      .get(id) as Record<string, unknown> | undefined;
+    return row ? toUserDTO(row) : null;
   }
 
   async findByEmail(email: string): Promise<UserDTO | null> {
-    const res = await this.doc.send(
-      new GetCommand({
-        TableName: this.table,
-        Key: { email: normEmail(email) },
-      }),
-    );
-    const r = res.Item;
-    return r ? toUserDTO(r as Record<string, unknown>) : null;
+    const row = this.db
+      .prepare(
+        `SELECT id, email, password, created_at AS createdAt FROM users WHERE email = ?`,
+      )
+      .get(normEmail(email)) as Record<string, unknown> | undefined;
+    return row ? toUserDTO(row) : null;
   }
 
   async createIfAbsent(user: Readonly<{ id: string; email: string; password: string; createdAt: string }>): Promise<void> {
-    await this.doc.send(
-      new PutCommand({
-        TableName: this.table,
-        Item: {
-          email: normEmail(user.email),
-          id: user.id,
-          password: user.password,
-          createdAt: user.createdAt,
-        },
-        ConditionExpression: "attribute_not_exists(email)",
-      }),
-    );
+    this.db
+      .prepare(
+        `INSERT INTO users (id, email, password, created_at) VALUES (@id, @email, @password, @createdAt)`,
+      )
+      .run({
+        id: user.id,
+        email: normEmail(user.email),
+        password: user.password,
+        createdAt: user.createdAt,
+      });
   }
 
   async deleteByEmail(email: string): Promise<void> {
-    await this.doc.send(
-      new DeleteCommand({
-        TableName: this.table,
-        Key: { email: normEmail(email) },
-      }),
-    );
+    this.db.prepare(`DELETE FROM users WHERE email = ?`).run(normEmail(email));
   }
 }

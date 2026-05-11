@@ -1,7 +1,8 @@
 import type { Server, Socket } from "socket.io";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import type { WorkspaceDTO } from "@voicewidget/db";
+import type { WorkspaceDTO } from "@streammeo/db";
+import { isUsageCapEnforced } from "@streammeo/shared";
 import { getStore } from "../db";
 import { createLogger } from "../logger";
 import { VoiceSession } from "../pipeline/session";
@@ -63,9 +64,12 @@ export function attachSocketHandlers(io: Server, deps: PipelineDeps): void {
           return;
         }
 
-        if (workspace.minutesUsed >= workspace.minutesLimit) {
+        if (
+          isUsageCapEnforced(workspace.minutesLimit) &&
+          workspace.minutesUsed >= workspace.minutesLimit
+        ) {
           socket.emit("error", {
-            message: "Monthly limit reached. Please upgrade.",
+            message: "Voice minute cap reached for this workspace.",
           });
           return;
         }
@@ -83,7 +87,6 @@ export function attachSocketHandlers(io: Server, deps: PipelineDeps): void {
         voice.setState("idle");
         socket.emit("usage", {
           minutesUsed: workspace.minutesUsed,
-          minutesLimit: workspace.minutesLimit,
         });
         log.info(
           {

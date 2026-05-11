@@ -1,71 +1,58 @@
-import type { SarvamLocale } from "../lang-map";
+import { deepgramUserFacingMessage } from "./deepgram-errors";
 
-const STT_ENDPOINT = "https://api.sarvam.ai/speech-to-text";
+const LISTEN_BASE = "https://api.deepgram.com/v1/listen";
 
 export async function transcribe(
   audioBuffer: Buffer,
   apiKey: string,
-  locale: SarvamLocale,
+  language: string,
+  model: string,
 ): Promise<string> {
-  const boundary = `----boundary-${Math.random().toString(36).slice(2)}`;
-  const parts: Buffer[] = [];
+  const params = new URLSearchParams({
+    model,
+    language,
+    smart_format: "true",
+  });
+  const url = `${LISTEN_BASE}?${params.toString()}`;
 
-  function append(field: string, value: string): void {
-    parts.push(Buffer.from(`--${boundary}\r\n`, "utf8"));
-    parts.push(
-      Buffer.from(
-        `Content-Disposition: form-data; name="${field}"\r\n\r\n${value}\r\n`,
-        "utf8",
-      ),
-    );
-  }
-
-  append("model", "saarika:v2");
-  append("language_code", locale);
-
-  parts.push(Buffer.from(`--${boundary}\r\n`, "utf8"));
-  parts.push(
-    Buffer.from(
-      `Content-Disposition: form-data; name="file"; filename="audio.webm"\r\n`,
-      "utf8",
-    ),
-  );
-  parts.push(Buffer.from(`Content-Type: audio/webm\r\n\r\n`, "utf8"));
-  parts.push(audioBuffer);
-  parts.push(Buffer.from(`\r\n--${boundary}--\r\n`, "utf8"));
-
-  const body = Buffer.concat(parts);
-
-  const res = await fetch(STT_ENDPOINT, {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
-      "api-subscription-key": apiKey,
-      "Content-Type": `multipart/form-data; boundary=${boundary}`,
-      Accept: "application/json",
+      Authorization: `Token ${apiKey}`,
+      "Content-Type": "audio/webm",
     },
-    body,
+    body: audioBuffer,
   });
 
+  const text = await res.text();
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`STT failed (${res.status}): ${text.slice(0, 500)}`);
+    throw new Error(deepgramUserFacingMessage("Speech-to-text", res.status, text));
   }
 
-  const data = (await res.json()) as Record<string, unknown>;
-  const transcript =
-    typeof data.transcript === "string"
-      ? data.transcript
-      : typeof data.text === "string"
-        ? data.text
-        : typeof data.result === "string"
-          ? data.result
-          : typeof data.output === "string"
-            ? data.output
-            : "";
-
-  if (!transcript.trim()) {
-    throw new Error(`STT response missing transcript: ${JSON.stringify(data).slice(0, 500)}`);
+  let data: unknown;
+  try {
+    data = JSON.parse(text) as unknown;
+  } catch {
+    throw new Error(`Speech-to-text: invalid JSON response (${text.slice(0, 200)})`);
   }
 
+  const transcript = extractTranscript(data);
   return transcript.trim();
+}
+
+function extractTranscript(data: unknown): string {
+  if (!data || typeof data !== "object") return "";
+  const root = data as Record<string, unknown>;
+  const results = root.results;
+  if (!results || typeof results !== "object") return "";
+  const channels = (results as Record<string, unknown>).channels;
+  if (!Array.isArray(channels) || channels.length === 0) return "";
+  const ch0 = channels[0];
+  if (!ch0 || typeof ch0 !== "object") return "";
+  const alts = (ch0 as Record<string, unknown>).alternatives;
+  if (!Array.isArray(alts) || alts.length === 0) return "";
+  const a0 = alts[0];
+  if (!a0 || typeof a0 !== "object") return "";
+  const t = (a0 as Record<string, unknown>).transcript;
+  return typeof t === "string" ? t : "";
 }

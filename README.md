@@ -1,6 +1,6 @@
-# VoiceWidget
+# Streammeo
 
-Embeddable AI voice support for Indian SMBs: store owners add a script tag; customers tap a mic, speak in **Tamil**, **Hindi**, or **English**, and hear spoken replies. Audio flows in real time over **Socket.IO**; **Sarvam** powers speech-to-text and text-to-speech, **Anthropic Claude** powers the conversation and tool use, and **Amazon DynamoDB** stores users, workspaces, sessions, messages, FAQs, and tool-call rows.
+**AI voice customer support** for your website: add a script tag or use the dashboard playground; visitors tap a mic, speak in **English**, and get answers grounded in **your FAQs and tools**—with full **session transcripts** for your team. Audio flows in real time over **Socket.IO**; **Deepgram** powers English speech-to-text and text-to-speech, **Groq** powers the conversation and tool use, and **SQLite** (single file via `better-sqlite3`) stores users, workspaces, sessions, messages, FAQs, and tool-call rows.
 
 ---
 
@@ -8,42 +8,41 @@ Embeddable AI voice support for Indian SMBs: store owners add a script tag; cust
 
 | Piece | Role |
 | ----- | ---- |
-| **`apps/backend`** | Express REST (auth, workspace, billing stubs) + Socket.IO voice pipeline (STT → LLM → tools → TTS). |
-| **`apps/frontend`** | Merchant dashboard: login, analytics, sessions, settings, FAQ editor, billing hooks. |
+| **`apps/backend`** | Express REST (auth, workspace) + Socket.IO voice pipeline (STT → LLM → tools → TTS). |
+| **`apps/frontend`** | Support console: login, analytics, sessions, agent settings, FAQ editor, widget playground. |
 | **`apps/widget`** | Single-file embeddable bundle (`dist/widget.js`): Shadow DOM UI, MediaRecorder, energy-based VAD, Socket.IO client. |
-| **`packages/db`** | DynamoDB document client wrappers: entities, repos, transactional helpers (see **`docs/dynamodb-tables.md`**). |
-| **`packages/shared`** | Shared constants (e.g. billing plan metadata). |
+| **`packages/db`** | SQLite schema + repos (`packages/db/src/sqlite/schema.ts`), transactional helpers. |
+| **`packages/shared`** | Shared helpers (e.g. usage-cap check for optional minute limits). |
 
 ---
 
 ## Tech stack
 
 - **Runtime:** Node.js 20+
-- **Package manager:** [pnpm](https://pnpm.io/) 9 workspaces
-- **Voice / LLM:** Sarvam API · Anthropic Messages API (streaming, tool use)
-- **Optional web search:** [Tavily](https://docs.tavily.com/) — registers a `web_search` tool for Claude when `TAVILY_API_KEY` is set
-- **Data:** DynamoDB · Redis 7 (usage keys, optional patterns)
-- **Billing:** Razorpay (order creation + webhook path; configure keys to go live)
+- **Package manager:** npm workspaces
+- **Voice / LLM:** Deepgram API (STT + Aura TTS) · Groq Chat Completions API (tool use)
+- **Optional web search:** [Tavily](https://docs.tavily.com/) — registers a `web_search` tool for the LLM when `TAVILY_API_KEY` is set
+- **Data:** SQLite · Redis 7 (usage keys, optional patterns)
 
 ---
 
 ## Prerequisites
 
-- **Node.js** ≥ 20 and **pnpm** (enable with `corepack enable` + `corepack prepare pnpm@9.14.4 --activate`, or use `npx pnpm@9.14.4`).
-- **Docker** (optional Redis + compose; DynamoDB is usually AWS or [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html)).
+- **Node.js** ≥ 20 and **npm**.
+- **Docker** (optional Redis + compose; SQLite path is configurable via `SQLITE_PATH`).
 
 ---
 
 ## Repository layout
 
 ```
-voicewidget/
+streammeo/
 ├── apps/
 │   ├── backend/      # API + Socket.IO
 │   ├── frontend/     # Vite + React dashboard
 │   └── widget/       # esbuild → dist/widget.js
 ├── packages/
-│   ├── db/           # DynamoDB repos + `scripts/seed.ts`
+│   ├── db/           # SQLite repos + `scripts/seed.ts`
 │   └── shared/
 ├── docs/
 │   └── AGENTS.md     # agent / build-order notes
@@ -54,35 +53,59 @@ voicewidget/
 
 ---
 
-## Environment variables
+## Install Guide
 
-Copy the templates and fill in secrets (never commit real keys):
+1. Install dependencies from the repo root:
+
+```bash
+npm install
+```
+
+2. Start Redis (required by backend usage tracking):
+
+```bash
+docker compose up -d redis
+```
+
+3. Create env files:
 
 ```bash
 cp .env.example .env
-cp apps/backend/.env.example apps/backend/.env
+cp apps/frontend/.env.example apps/frontend/.env
 ```
 
-Use the **same values** in both files for local dev (`tsx` loads `apps/backend/.env`).
+4. Start apps in separate terminals:
+
+```bash
+npm run dev:backend
+npm run dev:frontend
+```
+
+5. Open `http://localhost:5173`, register/login, then copy workspace API key from Settings for widget testing.
+
+---
+
+## .env Guide
+
+- Root `.env` is used by backend and docker compose.
+- `apps/frontend/.env` is only for frontend `VITE_*` variables.
+- Never commit real secrets.
 
 | Variable | Required | Purpose |
 | -------- | -------- | ------- |
-| `SARVAM_API_KEY` | Yes | STT + TTS ([Sarvam](https://docs.sarvam.ai/)). |
-| `ANTHROPIC_API_KEY` | Yes | Claude ([Anthropic](https://docs.anthropic.com/)). |
-| `AWS_REGION` | Yes (default `us-east-1`) | DynamoDB region. |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | If not using IAM role | Static credentials for local/dev; omit on ECS/EC2 with a task/instance role. |
-| `DYNAMODB_ENDPOINT` | No | Point at DynamoDB Local, e.g. `http://localhost:8000`. |
-| `DYNAMODB_TABLE_PREFIX` | No | Prefix for table names (default **`VoiceWidget`**). |
+| `DEEPGRAM_API_KEY` | Yes | STT + TTS ([Deepgram](https://developers.deepgram.com/)). |
+| `DEEPGRAM_STT_MODEL` | No | Pre-recorded STT model (default **`nova-2`**). |
+| `DEEPGRAM_TTS_MODEL` | No | Aura voice id (default **`aura-2-thalia-en`**). STT and TTS are **English**; override with any Aura model your account supports. |
+| `GROQ_API_KEY` | Yes | Groq API key for LLM calls ([Groq docs](https://console.groq.com/docs/overview)). |
+| `SQLITE_PATH` | No | SQLite database file path (default **`./data/streammeo.db`**); parent directories are created at startup. |
 | `REDIS_URL` | Yes | Redis connection string. |
 | `JWT_SECRET` | Yes | Min. 16 chars; signs dashboard JWTs. |
 | `PORT` | No | API port (default **3001**). |
 | `FRONTEND_URL` | Yes | Dashboard origin for CORS (e.g. `http://localhost:5173`). |
 | `WIDGET_ALLOWED_ORIGINS` | No | `*` or comma-separated origins for widget Socket.IO / CORS. |
 | `TAVILY_API_KEY` | No | If set, registers **`web_search`** for up-to-date web answers ([Tavily API](https://docs.tavily.com/docs/tavily-api/rest-api/api-reference)). |
-| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | No | Razorpay Checkout / orders. |
-| `RAZORPAY_WEBHOOK_SECRET` | No | Verifies `POST /billing/webhook` payloads. |
 
-Docker Compose also passes through `SARVAM_API_KEY`, `ANTHROPIC_API_KEY`, `TAVILY_API_KEY`, and Razorpay vars — set them in `.env` beside `docker compose` or export them in your shell.
+Docker Compose also passes through `DEEPGRAM_API_KEY`, `GROQ_API_KEY`, and `TAVILY_API_KEY` — set them in `.env` beside `docker compose` or export them in your shell.
 
 ---
 
@@ -90,40 +113,35 @@ Docker Compose also passes through `SARVAM_API_KEY`, `ANTHROPIC_API_KEY`, `TAVIL
 
 | Command | Description |
 | ------- | ----------- |
-| `pnpm install` | Install all workspace dependencies. |
-| `pnpm dev:backend` | API + Socket.IO on `http://localhost:3001`. |
-| `pnpm dev:frontend` | Dashboard on `http://localhost:5173` (proxies REST + `/socket.io` to 3001 — see [Local widget testing](#local-widget-testing)). |
-| `pnpm dev:widget` | Watch build of `apps/widget/dist/widget.js`. |
-| `pnpm build` | Build all packages that define a `build` script. |
-| `pnpm db:seed` | Optional demo workspace (`packages/db/scripts/seed.ts`; needs tables created first). |
-| `pnpm lint` | Typecheck backend + lint frontend. |
+| `npm install` | Install all workspace dependencies. |
+| `npm run dev:backend` | API + Socket.IO on `http://localhost:3001`. |
+| `npm run dev:frontend` | Dashboard on `http://localhost:5173` (proxies REST + `/socket.io` to 3001 — see [Local widget testing](#local-widget-testing)). |
+| `npm run dev:widget` | Watch build of `apps/widget/dist/widget.js`. |
+| `npm run build` | Build all packages that define a `build` script. |
+| `npm run db:seed` | **Wipes SQLite** and inserts fixed test users + sample data (`packages/db/scripts/seed.ts`). |
+| `npm run db:seed:demo` | Same as `db:seed` but loads `scripts/demo.local.env` if present (copy from `scripts/demo-env.example`). |
+| `npm run lint` | Typecheck backend + lint frontend. |
 
 ---
 
 ## Local development
 
-1. **Create DynamoDB tables** matching **`docs/dynamodb-tables.md`** (same prefix as `DYNAMODB_TABLE_PREFIX`).
+**Test database reset** (wipes SQLite, inserts fixed users — see `packages/db/scripts/seed.ts`):
 
-2. Start **Redis** (and optionally DynamoDB Local)  
-   ```bash
-   docker compose up -d redis
-   ```
+```bash
+npm run db:seed
+```
 
-3. Install deps and configure `.env` (see [.env.example](.env.example)).
+**Optional demo env** (`DEMO_MODE`, seed email/password for `POST /auth/demo-login` and seed overrides) lives outside root `.env`:
 
-4. Run backend and frontend in two terminals  
-   ```bash
-   pnpm install
-   pnpm dev:backend
-   pnpm dev:frontend
-   ```
+```bash
+cp scripts/demo-env.example scripts/demo.local.env
+./scripts/with-demo-env.sh npm run db:seed
+# optional: run backend with demo vars inherited
+./scripts/with-demo-env.sh npm run dev:backend
+```
 
-5. Open the dashboard at **http://localhost:5173**, register or log in, and copy the **workspace API key** from **Settings** for the widget.
-
-6. (Optional) Seed a demo owner after tables exist  
-   ```bash
-   pnpm db:seed
-   ```
+Use another file path: `STREAMMEO_DEMO_ENV=/path/to/file ./scripts/with-demo-env.sh npm run db:seed`
 
 ---
 
@@ -134,7 +152,7 @@ docker compose up --build
 ```
 
 - **Redis** → `localhost:6379`
-- **Backend** starts on **3001**; configure AWS/Dynamo env so it can reach your tables (or DynamoDB-compatible endpoint).
+- **Backend** starts on **3001**; SQLite is persisted on the **`streammeo-sqlite`** volume at **`/repo/data/streammeo.db`** unless you override `SQLITE_PATH`.
 - **Frontend** image serves the static build behind **nginx** on **5173** and proxies REST to the API at **`/api-proxy/...`** (see `apps/frontend/nginx.conf`)
 
 Production dashboard builds should set **`VITE_API_URL=/api-proxy`** (already done in `apps/frontend/Dockerfile`) so the SPA talks to the same host.
@@ -146,7 +164,7 @@ Production dashboard builds should set **`VITE_API_URL=/api-proxy`** (already do
 Build the bundle:
 
 ```bash
-pnpm --filter @voicewidget/widget build
+npm run -w @streammeo/widget build
 ```
 
 Serve `apps/widget/dist/widget.js` from your CDN or static host, then embed:
@@ -156,7 +174,7 @@ Serve `apps/widget/dist/widget.js` from your CDN or static host, then embed:
   src="https://your-cdn.example/voice-widget/widget.js"
   data-api-key="YOUR_WORKSPACE_API_KEY"
   data-backend-url="https://api.yourdomain.com"
-  data-lang="ta"
+  data-lang="en"
   async
 ></script>
 ```
@@ -165,7 +183,7 @@ Serve `apps/widget/dist/widget.js` from your CDN or static host, then embed:
 | --------- | ----------- |
 | `data-api-key` | **Required.** Workspace API key from the dashboard. |
 | `data-backend-url` | **Required in production.** Origin of the Socket.IO server (scheme + host + optional port). |
-| `data-lang` | Optional hint: `ta` \| `hi` \| `en` (workspace STT/TTS locale still comes from dashboard config). |
+| `data-lang` | Optional; use `en` (default). Workspace language is English; TTS voice is `DEEPGRAM_TTS_MODEL`. |
 
 The widget runs inside a **Shadow DOM** so host-page CSS does not clash with the floating mic + transcript UI.
 
@@ -173,16 +191,16 @@ The widget runs inside a **Shadow DOM** so host-page CSS does not clash with the
 
 ## Local widget testing
 
-With **`pnpm dev:frontend`** and **`pnpm dev:backend`** running:
+With **`npm run dev:frontend`** and **`npm run dev:backend`** running:
 
 - Point the script at **`http://localhost:5173`** for `data-backend-url` so the Vite dev server proxies **`/socket.io`** WebSocket traffic to port **3001** (`apps/frontend/vite.config.ts`).
 - Or set **`data-backend-url`** to **`http://localhost:3001`** and ensure CORS / `WIDGET_ALLOWED_ORIGINS` allows your test page origin.
 
 ---
 
-## Claude tools (backend)
+## LLM tools (backend)
 
-When the pipeline runs, Claude may call:
+When the pipeline runs, the LLM may call:
 
 | Tool | Source |
 | ---- | ------ |
@@ -197,7 +215,6 @@ When the pipeline runs, Claude may call:
 - Rotate any API key that was pasted into chats, logs, or CI artifacts.
 - Use a strong `JWT_SECRET` in production.
 - Lock down `WIDGET_ALLOWED_ORIGINS` to real store domains when you go live.
-- Razorpay webhooks depend on verifying signatures with **`RAZORPAY_WEBHOOK_SECRET`** and raw JSON body handling on **`POST /billing/webhook`**.
 
 ---
 

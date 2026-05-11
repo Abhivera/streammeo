@@ -1,27 +1,29 @@
-import Anthropic from "@anthropic-ai/sdk";
-import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { randomUUID } from "node:crypto";
-import type { Redis } from "ioredis";
-import type { WorkspaceDTO } from "@voicewidget/db";
+import type { WorkspaceDTO } from "@streammeo/db";
 import { transcribe } from "./stt";
 import { synthesise, wavChunks } from "./tts";
 import type { VoiceSession } from "./session";
 import { runAssistantStreamingTurn } from "./llm";
-import type { ToolRegistry } from "../tools/registry";
-import type { AppConfig } from "../config";
 import { getStore } from "../db";
 import { createLogger } from "../logger";
-import { workspaceLangToSarvam } from "../lang-map";
+import { workspaceLangToDeepgramStt } from "../lang-map";
 import { usageRedisKey } from "../redis";
+import { isUsageCapEnforced } from "@streammeo/shared";
+import { runDemoVoicePipeline } from "./demo-voice";
+import type { PipelineDeps } from "./deps";
 
-export type PipelineDeps = Readonly<{
-  config: AppConfig;
-  tools: ToolRegistry;
-  redis: Redis;
-  anthropic: Anthropic;
-}>;
+export type { PipelineDeps } from "./deps";
 
 const MAX_TOOL_LOOPS = 8;
+
+function isUserAbort(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { name?: string; code?: unknown; message?: unknown };
+  if (e.name === "AbortError") return true;
+  if (e.code === 20) return true;
+  if (typeof e.message === "string" && /aborted/i.test(e.message)) return true;
+  return false;
+}
 
 export async function runPipeline(
   deps: PipelineDeps,
@@ -29,14 +31,17 @@ export async function runPipeline(
   workspace: WorkspaceDTO,
 ): Promise<void> {
   const log = createLogger(deps.config, "pipeline");
-  const locale = workspaceLangToSarvam(workspace.language);
+  const sttLanguage = workspaceLangToDeepgramStt(workspace.language);
 
   const wallStart = Date.now();
 
   try {
-    if (workspace.minutesUsed >= workspace.minutesLimit) {
+    if (
+      isUsageCapEnforced(workspace.minutesLimit) &&
+      workspace.minutesUsed >= workspace.minutesLimit
+    ) {
       session.socket.emit("error", {
-        message: "Monthly limit reached. Please upgrade.",
+        message: "Voice minute cap reached for this workspace.",
       });
       session.setState("idle");
       return;
@@ -55,9 +60,32 @@ export async function runPipeline(
       return;
     }
 
+    if (deps.config.demoMode) {
+      await runDemoVoicePipeline(deps, session, workspace, wallStart, signal);
+      session.abortController = null;
+      session.setState("idle");
+      return;
+    }
+
     log.info({ sessionId: session.dbSessionId }, "STT start");
-    const userText = await transcribe(combined, deps.config.SARVAM_API_KEY, locale);
+    const userText = await transcribe(
+      combined,
+      deps.config.DEEPGRAM_API_KEY,
+      sttLanguage,
+      deps.config.DEEPGRAM_STT_MODEL,
+    );
     log.info({ sessionId: session.dbSessionId, userText }, "STT done");
+
+    if (!userText.trim()) {
+      log.warn({ sessionId: session.dbSessionId }, "STT empty transcript");
+      session.socket.emit("error", {
+        message:
+          "We couldn't make out any words. Try again, a bit closer to the mic or a little louder.",
+      });
+      session.abortController = null;
+      session.setState("idle");
+      return;
+    }
 
     session.socket.emit("transcript", { role: "user", text: userText });
 
@@ -75,7 +103,7 @@ export async function runPipeline(
     await data.sessions.addMessageCount(session.dbSessionId, 1);
 
     session.conversation.push({ role: "user", text: userText });
-    session.anthropicTurns.push({ role: "user", content: userText });
+    session.llmTurns.push({ role: "user", content: userText });
 
     const toolRegistry = deps.tools;
     const ctx = { workspaceId: workspace.id };
@@ -90,10 +118,10 @@ export async function runPipeline(
 
       log.info({ sessionId: session.dbSessionId, turn }, "LLM turn start");
       const outcome = await runAssistantStreamingTurn({
-        client: deps.anthropic,
+        client: deps.groq,
         systemPrompt: session.getSystemPrompt(workspace),
-        messages: session.anthropicTurns,
-        tools: toolRegistry.getAnthropicTools(),
+        messages: session.llmTurns,
+        tools: toolRegistry.getTools(),
         abortSignal: signal,
       });
       log.info(
@@ -101,17 +129,13 @@ export async function runPipeline(
         "LLM turn done",
       );
 
-      session.anthropicTurns.push({
-        role: "assistant",
-        content: outcome.assistantContent as ContentBlockParam[],
-      });
+      session.llmTurns.push(outcome.assistantMessage);
 
       if (outcome.toolUses.length === 0) {
         finalAssistantText = outcome.assistantText;
         break;
       }
 
-      const toolResultBlocks: ContentBlockParam[] = [];
       for (const tu of outcome.toolUses) {
         const outputText = await toolRegistry.execute(tu.name, tu.input, ctx);
         await data.toolCalls.put({
@@ -122,17 +146,12 @@ export async function runPipeline(
           output: { result: outputText },
           createdAtMs: Date.now(),
         });
-        toolResultBlocks.push({
-          type: "tool_result",
-          tool_use_id: tu.id,
+        session.llmTurns.push({
+          role: "tool",
+          tool_call_id: tu.id,
           content: outputText,
         });
       }
-
-      session.anthropicTurns.push({
-        role: "user",
-        content: toolResultBlocks,
-      });
 
       if (turn === MAX_TOOL_LOOPS - 1) {
         log.warn({ sessionId: session.dbSessionId }, "tool loop cap reached");
@@ -154,12 +173,22 @@ export async function runPipeline(
     }
 
     log.info({ sessionId: session.dbSessionId }, "TTS start");
-    const audioBuf = await synthesise(
-      finalAssistantText,
-      deps.config.SARVAM_API_KEY,
-      locale,
-      signal,
-    );
+    let audioBuf: Buffer;
+    try {
+      audioBuf = await synthesise(
+        finalAssistantText,
+        deps.config.DEEPGRAM_API_KEY,
+        deps.config.DEEPGRAM_TTS_MODEL,
+        signal,
+      );
+    } catch (ttsErr) {
+      if (isUserAbort(ttsErr)) {
+        log.info({ sessionId: session.dbSessionId }, "TTS aborted (barge-in)");
+        session.abortController = null;
+        return;
+      }
+      throw ttsErr;
+    }
     log.info(
       { sessionId: session.dbSessionId, bytes: audioBuf.length },
       "TTS done",
@@ -168,6 +197,12 @@ export async function runPipeline(
     for (const chunk of wavChunks(audioBuf)) {
       if (signal.aborted) break;
       session.socket.emit("audio", chunk);
+    }
+
+    if (signal.aborted) {
+      log.info({ sessionId: session.dbSessionId }, "playback aborted after TTS fetch");
+      session.abortController = null;
+      return;
     }
 
     session.socket.emit("transcript", { role: "assistant", text: finalAssistantText });
@@ -203,12 +238,19 @@ export async function runPipeline(
 
     session.socket.emit("usage", {
       minutesUsed: fresh?.minutesUsed ?? workspace.minutesUsed + minuteDelta,
-      minutesLimit: fresh?.minutesLimit ?? workspace.minutesLimit,
     });
 
     session.abortController = null;
     session.setState("idle");
   } catch (err) {
+    if (isUserAbort(err)) {
+      log.info({ sessionId: session.dbSessionId }, "pipeline aborted (barge-in)");
+      session.abortController = null;
+      if (session.state !== "listening") {
+        session.setState("idle");
+      }
+      return;
+    }
     log.error({ err, sessionId: session.dbSessionId }, "pipeline error");
     const message =
       err instanceof Error ? err.message : "Something went wrong. Please try again.";

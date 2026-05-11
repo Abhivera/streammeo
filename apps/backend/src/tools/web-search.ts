@@ -19,20 +19,23 @@ export function createWebSearchTool(apiKey: string): RegisteredTool {
   const key = apiKey.trim();
 
   return {
-    anthropic: {
-      name: "web_search",
-      description:
-        "Search the public web for timely or external information (news, competitors, definitions, troubleshooting) when FAQs and order lookup are not enough. Prefer short factual queries.",
-      input_schema: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description:
-              "What to look up (e.g. 'Delhiivery tracking status codes', 'Samsung Galaxy Buds pairing reset')",
+    tool: {
+      type: "function",
+      function: {
+        name: "web_search",
+        description:
+          "Search the public web for timely or external information (news, competitors, definitions, troubleshooting) when FAQs and order lookup are not enough. Prefer short factual queries.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description:
+                "What to look up (e.g. 'Delhiivery tracking status codes', 'Samsung Galaxy Buds pairing reset')",
+            },
           },
+          required: ["query"],
         },
-        required: ["query"],
       },
     },
 

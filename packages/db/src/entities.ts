@@ -13,7 +13,7 @@ export type WorkspaceDTO = Readonly<{
   shopifyShopDomain: string | null;
   shopifyAccessToken: string | null;
   createdAt: string;
-  /** Sessions created (Dynamo counter; list/total uses this). */
+  /** Sessions created (counter; list/total uses this). */
   sessionCount?: number;
 }>;
 

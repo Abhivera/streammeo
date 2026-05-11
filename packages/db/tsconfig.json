@@ -5,7 +5,9 @@
     "rootDir": ".",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "outDir": "dist"
+    "outDir": "dist",
+    "types": ["node"],
+    "typeRoots": ["../../node_modules/@types"]
   },
   "include": ["src/**/*.ts", "scripts/**/*.ts"]
 }

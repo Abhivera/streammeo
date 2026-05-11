@@ -1,37 +1,29 @@
-import type { SarvamLocale } from "../lang-map";
+import { deepgramUserFacingMessage } from "./deepgram-errors";
 
-const TTS_ENDPOINT = "https://api.sarvam.ai/text-to-speech";
+const SPEAK_BASE = "https://api.deepgram.com/v1/speak";
 
 export async function synthesise(
   text: string,
   apiKey: string,
-  locale: SarvamLocale,
+  model: string,
   abortSignal?: AbortSignal,
 ): Promise<Buffer> {
-  const body = JSON.stringify({
-    model: "bulbul:v1",
-    target_language_code: locale,
-    text,
-    pace: 1,
-    pitch: 0,
-    loudness: 1,
-    speech_sample_rate: 22050,
-  });
+  const url = `${SPEAK_BASE}?model=${encodeURIComponent(model)}`;
 
-  const res = await fetch(TTS_ENDPOINT, {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
-      "api-subscription-key": apiKey,
-      Accept: "*/*",
+      Authorization: `Token ${apiKey}`,
       "Content-Type": "application/json",
+      Accept: "audio/*",
     },
-    body,
+    body: JSON.stringify({ text }),
     signal: abortSignal,
   });
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`TTS failed (${res.status}): ${errText.slice(0, 500)}`);
+    throw new Error(deepgramUserFacingMessage("Text-to-speech", res.status, errText));
   }
 
   const arrayBuf = await res.arrayBuffer();

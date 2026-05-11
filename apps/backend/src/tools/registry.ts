@@ -1,4 +1,3 @@
-import type { Tool } from "@anthropic-ai/sdk/resources/messages";
 import pino from "pino";
 
 const log = pino({ name: "tool", level: "info" });
@@ -7,8 +6,17 @@ export type ToolContext = Readonly<{
   workspaceId: string;
 }>;
 
+export type LlmTool = Readonly<{
+  type: "function";
+  function: Readonly<{
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  }>;
+}>;
+
 export interface RegisteredTool {
-  anthropic: Tool;
+  tool: LlmTool;
   execute: (
     input: Record<string, unknown>,
     ctx: ToolContext,
@@ -19,12 +27,12 @@ export class ToolRegistry {
   private tools = new Map<string, RegisteredTool>();
 
   register(tool: RegisteredTool): void {
-    this.tools.set(tool.anthropic.name, tool);
-    log.info({ tool: tool.anthropic.name }, "Registered tool");
+    this.tools.set(tool.tool.function.name, tool);
+    log.info({ tool: tool.tool.function.name }, "Registered tool");
   }
 
-  getAnthropicTools(): Tool[] {
-    return [...this.tools.values()].map((t) => t.anthropic);
+  getTools(): LlmTool[] {
+    return [...this.tools.values()].map((t) => t.tool);
   }
 
   async execute(

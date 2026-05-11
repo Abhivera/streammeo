@@ -1,71 +1,57 @@
-import {
-  GetCommand,
-  PutCommand,
-  QueryCommand,
-  TransactWriteCommand,
-  UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
-import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import type { Database } from "better-sqlite3";
 import type { SessionDTO } from "../entities";
-import { GSI } from "../dynamo/keys";
 import { toSessionDTO } from "../mappers";
 
-export type SessionCursor = Readonly<
-  Record<string, unknown>
->;
+/** Pagination token for `/workspace/sessions` (newest first). */
+export type SessionCursor = Readonly<{
+  startedAt: number;
+  id: string;
+}>;
+
+const sessionRowSelect = `
+  SELECT
+    id,
+    workspace_id AS workspaceId,
+    started_at AS startedAt,
+    ended_at AS endedAt,
+    duration_sec AS durationSec,
+    resolved,
+    message_count AS messageCount
+  FROM sessions
+`;
 
 export class SessionsRepo {
-  constructor(
-    private readonly doc: DynamoDBDocumentClient,
-    private readonly table: string,
-    private readonly workspacesTable: string,
-  ) {}
+  constructor(private readonly db: Database) {}
 
   async findByIdAndWorkspace(
     sessionId: string,
     workspaceId: string,
   ): Promise<SessionDTO | null> {
-    const res = await this.doc.send(
-      new GetCommand({ TableName: this.table, Key: { id: sessionId } }),
-    );
-    const r = res.Item as Record<string, unknown> | undefined;
-    if (!r || String(r.workspaceId) !== workspaceId) return null;
-    return toSessionDTO(r);
+    const row = this.db
+      .prepare(`${sessionRowSelect} WHERE id = ? AND workspace_id = ?`)
+      .get(sessionId, workspaceId) as Record<string, unknown> | undefined;
+    return row ? toSessionDTO(row) : null;
   }
 
-  /** Create voice session row and bump workspace session counter (TransactWrite). */
   async createForWorkspace(workspaceId: string, sessionId: string): Promise<SessionDTO> {
     const startedAt = Date.now();
-    await this.doc.send(
-      new TransactWriteCommand({
-        TransactItems: [
-          {
-            Put: {
-              TableName: this.table,
-              Item: {
-                id: sessionId,
-                workspaceId,
-                startedAt,
-                endedAt: null,
-                durationSec: 0,
-                resolved: false,
-                messageCount: 0,
-              },
-              ConditionExpression: "attribute_not_exists(id)",
-            },
-          },
-          {
-            Update: {
-              TableName: this.workspacesTable,
-              Key: { id: workspaceId },
-              UpdateExpression: "ADD sessionCount :one",
-              ExpressionAttributeValues: { ":one": 1 },
-              ConditionExpression: "attribute_exists(id)",
-            },
-          },
-        ],
-      }),
-    );
+    const tx = this.db.transaction(() => {
+      this.db
+        .prepare(
+          `
+        INSERT INTO sessions (id, workspace_id, started_at, ended_at, duration_sec, resolved, message_count)
+        VALUES (?, ?, ?, NULL, 0, 0, 0)
+      `,
+        )
+        .run(sessionId, workspaceId, startedAt);
+      const w = this.db
+        .prepare(`UPDATE workspaces SET session_count = session_count + 1 WHERE id = ?`)
+        .run(workspaceId);
+      if (w.changes === 0) {
+        throw new Error("Workspace missing for session create");
+      }
+    });
+    tx();
 
     const row = await this.findByIdAndWorkspace(sessionId, workspaceId);
     if (!row) throw new Error("Session create failed unexpectedly");
@@ -76,65 +62,41 @@ export class SessionsRepo {
     sessionId: string,
     patch: Partial<Pick<SessionDTO, "endedAt" | "durationSec" | "resolved">>,
   ): Promise<void> {
-    const names: Record<string, string> = {};
-    const values: Record<string, unknown> = {};
     const parts: string[] = [];
-    let i = 0;
+    const vals: unknown[] = [];
     if (patch.endedAt !== undefined) {
-      names[`#e${i}`] = "endedAt";
-      values[`:v${i}`] = patch.endedAt;
-      parts.push(`#e${i} = :v${i}`);
-      i++;
+      parts.push("ended_at = ?");
+      vals.push(patch.endedAt);
     }
     if (patch.durationSec !== undefined) {
-      names[`#e${i}`] = "durationSec";
-      values[`:v${i}`] = patch.durationSec;
-      parts.push(`#e${i} = :v${i}`);
-      i++;
+      parts.push("duration_sec = ?");
+      vals.push(patch.durationSec);
     }
     if (patch.resolved !== undefined) {
-      names[`#e${i}`] = "resolved";
-      values[`:v${i}`] = patch.resolved;
-      parts.push(`#e${i} = :v${i}`);
-      i++;
+      parts.push("resolved = ?");
+      vals.push(patch.resolved ? 1 : 0);
     }
     if (parts.length === 0) return;
-
-    await this.doc.send(
-      new UpdateCommand({
-        TableName: this.table,
-        Key: { id: sessionId },
-        UpdateExpression: `SET ${parts.join(", ")}`,
-        ExpressionAttributeNames: names,
-        ExpressionAttributeValues: values,
-      }),
-    );
+    vals.push(sessionId);
+    this.db
+      .prepare(`UPDATE sessions SET ${parts.join(", ")} WHERE id = ?`)
+      .run(...vals);
   }
 
-  /** Only sets endedAt if still absent (disconnect race). */
   async markEndedIfOpen(sessionId: string): Promise<void> {
     const now = new Date().toISOString();
-    await this.doc.send(
-      new UpdateCommand({
-        TableName: this.table,
-        Key: { id: sessionId },
-        UpdateExpression: "SET endedAt = :e",
-        ConditionExpression: "attribute_not_exists(endedAt)",
-        ExpressionAttributeValues: { ":e": now },
-      }),
-    ).catch(() => undefined);
+    this.db
+      .prepare(
+        `UPDATE sessions SET ended_at = ? WHERE id = ? AND ended_at IS NULL`,
+      )
+      .run(now, sessionId);
   }
 
   async addMessageCount(sessionId: string, delta: number): Promise<void> {
     if (delta === 0) return;
-    await this.doc.send(
-      new UpdateCommand({
-        TableName: this.table,
-        Key: { id: sessionId },
-        UpdateExpression: "ADD messageCount :d",
-        ExpressionAttributeValues: { ":d": delta },
-      }),
-    );
+    this.db
+      .prepare(`UPDATE sessions SET message_count = message_count + ? WHERE id = ?`)
+      .run(delta, sessionId);
   }
 
   async listByWorkspacePage(
@@ -142,43 +104,60 @@ export class SessionsRepo {
     limit: number,
     exclusiveStartKey?: SessionCursor | undefined,
   ): Promise<{ items: SessionDTO[]; nextKey?: SessionCursor }> {
-    const res = await this.doc.send(
-      new QueryCommand({
-        TableName: this.table,
-        IndexName: GSI.sessionWorkspaceTime,
-        KeyConditionExpression: "workspaceId = :w",
-        ExpressionAttributeValues: { ":w": workspaceId },
-        Limit: Math.min(Math.max(limit, 1), 100),
-        ScanIndexForward: false,
-        ExclusiveStartKey: exclusiveStartKey as never,
-      }),
-    );
-    const items = (res.Items ?? []).map((it: Record<string, unknown>) =>
-      toSessionDTO(it),
-    );
-    const nextKey = res.LastEvaluatedKey as SessionCursor | undefined;
+    const lim = Math.min(Math.max(limit, 1), 100);
+    let rows: Record<string, unknown>[];
+    if (exclusiveStartKey) {
+      rows = this.db
+        .prepare(
+          `
+        ${sessionRowSelect}
+        WHERE workspace_id = ?
+          AND (started_at < ? OR (started_at = ? AND id < ?))
+        ORDER BY started_at DESC, id DESC
+        LIMIT ?
+      `,
+        )
+        .all(
+          workspaceId,
+          exclusiveStartKey.startedAt,
+          exclusiveStartKey.startedAt,
+          exclusiveStartKey.id,
+          lim,
+        ) as Record<string, unknown>[];
+    } else {
+      rows = this.db
+        .prepare(
+          `
+        ${sessionRowSelect}
+        WHERE workspace_id = ?
+        ORDER BY started_at DESC, id DESC
+        LIMIT ?
+      `,
+        )
+        .all(workspaceId, lim) as Record<string, unknown>[];
+    }
+
+    const items = rows.map((it) => toSessionDTO(it));
+    const rawLast = rows[rows.length - 1];
+    const startedMs =
+      rawLast && typeof rawLast.startedAt === "number"
+        ? rawLast.startedAt
+        : rawLast
+          ? Number(rawLast.startedAt)
+          : NaN;
+    const nextKey =
+      rows.length === lim && rawLast && Number.isFinite(startedMs)
+        ? ({ startedAt: startedMs, id: String(rawLast.id) } as const)
+        : undefined;
     return { items, ...(nextKey ? { nextKey } : {}) };
   }
 
-  /** Full scan via GSI (moderate workspaces only). Analytics & totals. */
   async listAllByWorkspace(workspaceId: string): Promise<SessionDTO[]> {
-    const out: SessionDTO[] = [];
-    let startKey: SessionCursor | undefined;
-    do {
-      const res = await this.doc.send(
-        new QueryCommand({
-          TableName: this.table,
-          IndexName: GSI.sessionWorkspaceTime,
-          KeyConditionExpression: "workspaceId = :w",
-          ExpressionAttributeValues: { ":w": workspaceId },
-          ExclusiveStartKey: startKey as never,
-        }),
-      );
-      for (const it of res.Items ?? []) {
-        out.push(toSessionDTO(it as Record<string, unknown>));
-      }
-      startKey = res.LastEvaluatedKey as SessionCursor | undefined;
-    } while (startKey);
-    return out;
+    const rows = this.db
+      .prepare(
+        `${sessionRowSelect} WHERE workspace_id = ? ORDER BY started_at DESC, id DESC`,
+      )
+      .all(workspaceId) as Record<string, unknown>[];
+    return rows.map((it) => toSessionDTO(it));
   }
 }

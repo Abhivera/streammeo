@@ -23,10 +23,47 @@ function issueToken(params: AppConfig & { payload: JwtPayload }): string {
   return jwt.sign(params.payload, params.JWT_SECRET, { expiresIn: "14d" });
 }
 
+function isSqliteUniqueViolation(err: unknown): boolean {
+  if (typeof err !== "object" || err === null || !("code" in err)) return false;
+  const code = String((err as { code: unknown }).code);
+  return code === "SQLITE_CONSTRAINT_UNIQUE" || code === "SQLITE_CONSTRAINT_PRIMARYKEY";
+}
+
 export function createAuthRouter(config: AppConfig): Router {
   const router = Router();
   const authMiddleware = createAuthMiddleware(config);
   const log = createLogger(config, "auth");
+
+  router.post("/demo-login", async (_req, res) => {
+    if (!config.demoMode) {
+      res.status(404).json({ error: "Demo login is not enabled on this server" });
+      return;
+    }
+    const email = config.demoSeedEmail.toLowerCase().trim();
+    try {
+      const user = await getStore().users.findByEmail(email);
+      const workspace = user && (await getStore().workspaces.listByOwner(user.id)).at(0);
+      if (!(user && workspace)) {
+        res.status(503).json({
+          error: "Demo account not found. From the repo root run: npm run db:seed",
+        });
+        return;
+      }
+      const payload: JwtPayload = {
+        userId: user.id,
+        workspaceId: workspace.id,
+        email: user.email,
+      };
+      log.info({ email }, "demo login issued");
+      res.json({
+        token: issueToken({ ...config, payload }),
+        workspace,
+      });
+    } catch (err) {
+      log.error({ err }, "demo login failed");
+      res.status(500).json({ error: "Demo login failed" });
+    }
+  });
 
   router.post("/register", async (req, res) => {
     const parsed = registerSchema.safeParse(req.body);
@@ -51,12 +88,7 @@ export function createAuthRouter(config: AppConfig): Router {
           createdAt: new Date().toISOString(),
         });
       } catch (err: unknown) {
-        if (
-          typeof err === "object" &&
-          err !== null &&
-          "name" in err &&
-          err.name === "ConditionalCheckFailedException"
-        ) {
+        if (isSqliteUniqueViolation(err)) {
           res.status(409).json({ error: "Email already registered" });
           return;
         }
@@ -70,12 +102,12 @@ export function createAuthRouter(config: AppConfig): Router {
           id: workspaceId,
           name: parsed.data.workspaceName,
           apiKey,
-          language: "ta",
-          agentName: "Priya",
+          language: "en",
+          agentName: "Alex",
           systemPrompt: "You are a helpful customer support agent.",
-          plan: "starter",
+          plan: "free",
           minutesUsed: 0,
-          minutesLimit: 500,
+          minutesLimit: 0,
           ownerId: userId,
           shopifyShopDomain: null,
           shopifyAccessToken: null,

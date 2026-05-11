@@ -3,17 +3,12 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
-import Anthropic from "@anthropic-ai/sdk";
+import Groq from "groq-sdk";
 import { loadConfig, getCorsOrigins } from "./config";
 import { createLogger } from "./logger";
 import { getRedis } from "./redis";
 import { createAuthRouter } from "./auth/routes";
 import { createWorkspaceRouter } from "./workspace/routes";
-import {
-  createBillingPublicRouter,
-  createBillingOrderRouter,
-  createBillingWebhookRouter,
-} from "./billing/routes";
 import { ToolRegistry } from "./tools/registry";
 import { getOrderStatusTool } from "./tools/get-order-status";
 import { searchFaqTool } from "./tools/search-faq";
@@ -24,6 +19,11 @@ import { initStore } from "./db";
 const config = loadConfig();
 initStore(config);
 const log = createLogger(config, "boot");
+if (config.demoMode) {
+  log.warn(
+    "DEMO_MODE on — Deepgram/Groq optional; canned voice pipeline; POST /auth/demo-login for dashboard demo",
+  );
+}
 const redis = getRedis(config);
 
 void redis
@@ -42,24 +42,18 @@ if (tavilyKey.length > 0) {
   log.warn("TAVILY_API_KEY not set — web_search tool disabled");
 }
 
-const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
+const groq = new Groq({
+  apiKey: config.demoMode ? "demo-mode-key-unused" : config.GROQ_API_KEY,
+});
 
 const pipelineDeps = Object.freeze({
   config,
   tools: toolRegistry,
   redis,
-  anthropic,
+  groq,
 });
 
 const app = express();
-
-const billingWebhookRouter = createBillingWebhookRouter(config);
-
-app.use(
-  "/billing/webhook",
-  express.raw({ type: "application/json" }),
-  billingWebhookRouter,
-);
 
 app.use(
   cors({
@@ -74,16 +68,22 @@ const authLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) =>
+    req.method === "POST" &&
+    (req.path === "/auth/demo-login" ||
+      req.path === "/demo-login" ||
+      req.originalUrl.split("?")[0] === "/auth/demo-login"),
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    demoMode: config.demoMode,
+  });
 });
 
 app.use("/auth", authLimiter, createAuthRouter(config));
 app.use("/workspace", createWorkspaceRouter(config));
-app.use("/billing", createBillingPublicRouter(config));
-app.use("/billing", createBillingOrderRouter(config));
 
 const server = createServer(app);
 

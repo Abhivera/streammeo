@@ -1,1 +1,1 @@
-export { PLANS, type PlanId } from "./plans";
+export { isUsageCapEnforced } from "./usage-cap";

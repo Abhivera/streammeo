@@ -1,0 +1,5 @@
+# Speed up uploads; not needed for the static frontend build
+.agents
+**/*.db
+apps/backend/data
+packages/db/data

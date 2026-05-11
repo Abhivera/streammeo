@@ -1,63 +1,55 @@
-import { PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import type { Database } from "better-sqlite3";
 import type { MessageDTO } from "../entities";
-import { GSI } from "../dynamo/keys";
 import { toMessageDTO } from "../mappers";
 
-export class MessagesRepo {
-  constructor(
-    private readonly doc: DynamoDBDocumentClient,
-    private readonly table: string,
-  ) {}
+const messageSelect = `
+  SELECT
+    id,
+    session_id AS sessionId,
+    workspace_id AS workspaceId,
+    role,
+    text,
+    audio_url AS audioUrl,
+    created_at AS createdAt
+  FROM messages
+`;
 
-  async put(m: Readonly<Omit<MessageDTO, "createdAt">> & { createdAtMs: number }>): Promise<void> {
-    await this.doc.send(
-      new PutCommand({
-        TableName: this.table,
-        Item: {
-          sessionId: m.sessionId,
-          id: m.id,
-          workspaceId: m.workspaceId,
-          role: m.role,
-          text: m.text,
-          ...(m.audioUrl != null ? { audioUrl: m.audioUrl } : {}),
-          createdAt: m.createdAtMs,
-        },
-      }),
-    );
+export class MessagesRepo {
+  constructor(private readonly db: Database) {}
+
+  async put(m: Readonly<Omit<MessageDTO, "createdAt">> & { createdAtMs: number }): Promise<void> {
+    this.db
+      .prepare(
+        `
+      INSERT INTO messages (id, session_id, workspace_id, role, text, audio_url, created_at)
+      VALUES (@id, @sessionId, @workspaceId, @role, @text, @audioUrl, @createdAt)
+    `,
+      )
+      .run({
+        id: m.id,
+        sessionId: m.sessionId,
+        workspaceId: m.workspaceId,
+        role: m.role,
+        text: m.text,
+        audioUrl: m.audioUrl,
+        createdAt: m.createdAtMs,
+      });
   }
 
   async listForSessionAscending(sessionId: string): Promise<MessageDTO[]> {
-    const res = await this.doc.send(
-      new QueryCommand({
-        TableName: this.table,
-        KeyConditionExpression: "sessionId = :s",
-        ExpressionAttributeValues: { ":s": sessionId },
-      }),
-    );
-    const rows = (res.Items ?? []).map((it) =>
-      toMessageDTO(it as Record<string, unknown>),
-    );
-    rows.sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    );
-    return rows;
+    const rows = this.db
+      .prepare(`${messageSelect} WHERE session_id = ? ORDER BY created_at ASC, id ASC`)
+      .all(sessionId) as Record<string, unknown>[];
+    return rows.map((it) => toMessageDTO(it));
   }
 
-  /** Recent rows for aggregation (prefer `role = user`). */
   async recentForWorkspace(workspaceId: string, limit: number): Promise<MessageDTO[]> {
-    const res = await this.doc.send(
-      new QueryCommand({
-        TableName: this.table,
-        IndexName: GSI.messageWorkspaceTime,
-        KeyConditionExpression: "workspaceId = :w",
-        ExpressionAttributeValues: { ":w": workspaceId },
-        Limit: Math.min(limit, 500),
-        ScanIndexForward: false,
-      }),
-    );
-    return (res.Items ?? []).map((it) =>
-      toMessageDTO(it as Record<string, unknown>),
-    );
+    const lim = Math.min(limit, 500);
+    const rows = this.db
+      .prepare(
+        `${messageSelect} WHERE workspace_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`,
+      )
+      .all(workspaceId, lim) as Record<string, unknown>[];
+    return rows.map((it) => toMessageDTO(it));
   }
 }

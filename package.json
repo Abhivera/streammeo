@@ -1,20 +1,21 @@
 {
-  "name": "voicewidget",
+  "name": "streammeo",
   "private": true,
-  "packageManager": "pnpm@9.14.4",
   "engines": {
     "node": ">=20"
   },
-  "devDependencies": {
-    "@aws-sdk/client-dynamodb": "^3.758.0",
-    "@aws-sdk/lib-dynamodb": "^3.758.0"
-  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev:backend": "pnpm --filter @voicewidget/backend dev",
-    "dev:frontend": "pnpm --filter @voicewidget/frontend dev",
-    "dev:widget": "pnpm --filter @voicewidget/widget dev",
-    "build": "pnpm -r run build",
-    "db:seed": "pnpm --filter @voicewidget/db seed",
-    "lint": "pnpm --filter @voicewidget/backend lint && pnpm --filter @voicewidget/frontend lint"
+    "dev:backend": "npm run -w @streammeo/backend dev",
+    "dev:backend:demo": "DEMO_MODE=true npm run -w @streammeo/backend dev",
+    "dev:frontend": "npm run -w @streammeo/frontend dev",
+    "dev:widget": "npm run -w @streammeo/widget dev",
+    "build": "npm run -ws build",
+    "db:seed": "npm run -w @streammeo/db seed",
+    "db:seed:demo": "bash scripts/with-demo-env.sh npm run db:seed",
+    "lint": "npm run -w @streammeo/backend lint && npm run -w @streammeo/frontend lint"
   }
 }

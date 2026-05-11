@@ -1,18 +1,9 @@
-import {
-  DeleteCommand,
-  PutCommand,
-  QueryCommand,
-  UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
-import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import type { Database } from "better-sqlite3";
 import type { FaqDTO } from "../entities";
 import { toFaqDTO } from "../mappers";
 
 export class FaqsRepo {
-  constructor(
-    private readonly doc: DynamoDBDocumentClient,
-    private readonly table: string,
-  ) {}
+  constructor(private readonly db: Database) {}
 
   async put(
     f: Readonly<Omit<FaqDTO, "embedding" | "createdAt">> & {
@@ -20,48 +11,72 @@ export class FaqsRepo {
       createdAtMs: number;
     },
   ): Promise<FaqDTO> {
-    const item = {
-      workspaceId: f.workspaceId,
-      id: f.id,
-      question: f.question,
-      answer: f.answer,
-      embedding: f.embedding ?? [],
-      createdAt: f.createdAtMs,
-    };
-    await this.doc.send(new PutCommand({ TableName: this.table, Item: item }));
-    return toFaqDTO(item as Record<string, unknown>);
+    const embeddingJson = JSON.stringify(f.embedding ?? []);
+    this.db
+      .prepare(
+        `
+      INSERT INTO faqs (id, workspace_id, question, answer, embedding_json, created_at)
+      VALUES (@id, @workspaceId, @question, @answer, @embeddingJson, @createdAt)
+    `,
+      )
+      .run({
+        id: f.id,
+        workspaceId: f.workspaceId,
+        question: f.question,
+        answer: f.answer,
+        embeddingJson,
+        createdAt: f.createdAtMs,
+      });
+    const row = this.db
+      .prepare(
+        `
+      SELECT
+        id,
+        workspace_id AS workspaceId,
+        question,
+        answer,
+        embedding_json AS embeddingJson,
+        created_at AS createdAt
+      FROM faqs WHERE workspace_id = ? AND id = ?
+    `,
+      )
+      .get(f.workspaceId, f.id) as Record<string, unknown>;
+    return toFaqDTO({
+      ...row,
+      embedding: JSON.parse(String(row.embeddingJson ?? "[]")),
+    });
   }
 
   async listByWorkspaceDescending(workspaceId: string): Promise<FaqDTO[]> {
-    const res = await this.doc.send(
-      new QueryCommand({
-        TableName: this.table,
-        KeyConditionExpression: "workspaceId = :w",
-        ExpressionAttributeValues: { ":w": workspaceId },
+    const rows = this.db
+      .prepare(
+        `
+      SELECT
+        id,
+        workspace_id AS workspaceId,
+        question,
+        answer,
+        embedding_json AS embeddingJson,
+        created_at AS createdAt
+      FROM faqs
+      WHERE workspace_id = ?
+      ORDER BY created_at DESC, id DESC
+    `,
+      )
+      .all(workspaceId) as Record<string, unknown>[];
+    return rows.map((it) =>
+      toFaqDTO({
+        ...it,
+        embedding: JSON.parse(String(it.embeddingJson ?? "[]")),
       }),
     );
-    const rows = (res.Items ?? []).map((it) =>
-      toFaqDTO(it as Record<string, unknown>),
-    );
-    rows.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-    return rows;
   }
 
   async delete(workspaceId: string, id: string): Promise<boolean> {
-    try {
-      await this.doc.send(
-        new DeleteCommand({
-          TableName: this.table,
-          Key: { workspaceId, id },
-          ConditionExpression: "attribute_exists(id)",
-        }),
-      );
-      return true;
-    } catch {
-      return false;
-    }
+    const r = this.db
+      .prepare(`DELETE FROM faqs WHERE workspace_id = ? AND id = ?`)
+      .run(workspaceId, id);
+    return r.changes > 0;
   }
 
   async update(
@@ -69,21 +84,31 @@ export class FaqsRepo {
     id: string,
     patch: Pick<FaqDTO, "question" | "answer">,
   ): Promise<FaqDTO | null> {
-    try {
-      const res = await this.doc.send(
-        new UpdateCommand({
-          TableName: this.table,
-          Key: { workspaceId, id },
-          UpdateExpression: "SET question = :q, answer = :a",
-          ConditionExpression: "attribute_exists(id)",
-          ExpressionAttributeValues: { ":q": patch.question, ":a": patch.answer },
-          ReturnValues: "ALL_NEW",
-        }),
-      );
-      const attrs = res.Attributes;
-      return attrs ? toFaqDTO(attrs as Record<string, unknown>) : null;
-    } catch {
-      return null;
-    }
+    const r = this.db
+      .prepare(
+        `UPDATE faqs SET question = ?, answer = ? WHERE workspace_id = ? AND id = ?`,
+      )
+      .run(patch.question, patch.answer, workspaceId, id);
+    if (r.changes === 0) return null;
+    const row = this.db
+      .prepare(
+        `
+      SELECT
+        id,
+        workspace_id AS workspaceId,
+        question,
+        answer,
+        embedding_json AS embeddingJson,
+        created_at AS createdAt
+      FROM faqs WHERE workspace_id = ? AND id = ?
+    `,
+      )
+      .get(workspaceId, id) as Record<string, unknown> | undefined;
+    return row
+      ? toFaqDTO({
+          ...row,
+          embedding: JSON.parse(String(row.embeddingJson ?? "[]")),
+        })
+      : null;
   }
 }

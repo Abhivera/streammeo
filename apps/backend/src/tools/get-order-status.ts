@@ -2,23 +2,26 @@ import type { RegisteredTool } from "./registry";
 import { getStore } from "../db";
 
 export const getOrderStatusTool: RegisteredTool = {
-  anthropic: {
-    name: "get_order_status",
-    description:
-      "Get the current status and tracking info for a customer order",
-    input_schema: {
-      type: "object",
-      properties: {
-        order_id: {
-          type: "string",
-          description: "The order ID or order number",
+  tool: {
+    type: "function",
+    function: {
+      name: "get_order_status",
+      description:
+        "Get the current status and tracking info for a customer order",
+      parameters: {
+        type: "object",
+        properties: {
+          order_id: {
+            type: "string",
+            description: "The order ID or order number",
+          },
+          phone: {
+            type: "string",
+            description: "Customer phone number to verify identity",
+          },
         },
-        phone: {
-          type: "string",
-          description: "Customer phone number to verify identity",
-        },
+        required: ["order_id"],
       },
-      required: ["order_id"],
     },
   },
 
@@ -59,10 +62,10 @@ export const getOrderStatusTool: RegisteredTool = {
     return JSON.stringify({
       order_id: orderId,
       status: "shipped",
-      courier: "Delhivery",
-      tracking: "DL98765432IN",
+      courier: "DHL",
+      tracking: "JD0146000058290401",
       eta: "2–3 business days",
-      last_location: "Chennai Hub",
+      last_location: "Regional distribution center",
       phone,
     });
   },

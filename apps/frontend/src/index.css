@@ -1,3 +1,94 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-vw-bg text-vw-fg antialiased;
+  }
+
+  ::selection {
+    background-color: oklch(0.42 0.08 64);
+    color: oklch(0.98 0.006 74);
+  }
+}
+
+@layer components {
+  .vw-panel {
+    @apply rounded-xl border border-vw-border bg-vw-surface shadow-vw;
+  }
+
+  .vw-field-label {
+    @apply block text-sm font-medium text-vw-fg-soft;
+  }
+
+  .vw-input {
+    @apply mt-1.5 block w-full cursor-text rounded-lg border border-vw-border bg-vw-bg px-3 py-2.5 text-sm font-normal text-vw-fg shadow-inner;
+    @apply transition-[border-color,box-shadow] duration-vw ease-out-expo;
+    @apply placeholder:text-vw-placeholder;
+    @apply hover:border-vw-border;
+    @apply focus:border-vw-accent focus:outline-none focus:ring-2 focus:ring-vw-accent-ring;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .vw-select {
+    @apply vw-input appearance-none bg-[length:1rem] bg-[right_0.65rem_center] bg-no-repeat pr-9;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%239a9288' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+  }
+
+  .vw-btn-primary {
+    @apply inline-flex items-center justify-center rounded-lg bg-vw-accent px-4 py-2.5 text-sm font-semibold text-vw-accent-fg shadow-vw;
+    @apply transition-[background-color,transform,box-shadow] duration-vw ease-out-expo;
+    @apply hover:bg-vw-accent-hover active:scale-[0.99];
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vw-accent;
+    @apply disabled:pointer-events-none disabled:opacity-45;
+  }
+
+  .vw-btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg border border-vw-border bg-vw-elevated px-4 py-2.5 text-sm font-medium text-vw-fg-soft shadow-vw;
+    @apply transition-[background-color,border-color,color] duration-vw ease-out-expo;
+    @apply hover:border-vw-muted hover:bg-vw-surface hover:text-vw-fg;
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vw-accent;
+    @apply disabled:pointer-events-none disabled:opacity-45;
+  }
+
+  .vw-nav-link {
+    @apply rounded-lg border border-transparent px-3 py-2 text-sm text-vw-fg-soft transition-colors duration-vw ease-out-expo;
+    @apply hover:bg-vw-elevated hover:text-vw-fg;
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-vw-accent;
+  }
+
+  .vw-nav-link-active {
+    @apply border-vw-accent-edge bg-vw-accent-surface font-semibold text-vw-accent;
+  }
+
+  .vw-page-title {
+    @apply text-2xl font-semibold tracking-tight text-vw-fg;
+  }
+
+  .vw-page-lede {
+    @apply mt-2 max-w-prose text-sm leading-relaxed text-vw-fg-soft;
+  }
+
+  .vw-hint {
+    @apply text-xs leading-relaxed text-vw-fg-soft;
+  }
+
+  .vw-table-head {
+    @apply text-left text-xs font-medium uppercase tracking-wide text-vw-muted;
+  }
+
+  .vw-toast {
+    @apply fixed bottom-8 right-6 z-50 rounded-xl border border-vw-success-edge bg-vw-success-soft px-5 py-3 text-sm font-medium text-vw-success-fg shadow-vw-lg;
+    @apply transition-opacity duration-vw ease-out-expo;
+  }
+
+  .vw-auth-shell {
+    @apply min-h-screen bg-vw-bg;
+    background-image: radial-gradient(100% 70% at 50% -10%, oklch(0.26 0.045 66 / 0.5) 0%, transparent 58%);
+  }
+}

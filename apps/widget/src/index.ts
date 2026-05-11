@@ -6,33 +6,33 @@ type SessionStateEvt = { state: string };
 
 declare global {
   interface Window {
-    VoiceWidgetInjected?: boolean;
+    StreammeoInjected?: boolean;
   }
 }
 
 const SCRIPT_EL = document.currentScript as HTMLScriptElement | null;
 if (!SCRIPT_EL) {
-  console.error("VoiceWidget: embed via a dedicated <script> tag");
-} else if (window.VoiceWidgetInjected) {
+  console.error("Streammeo: embed via a dedicated <script> tag");
+} else if (window.StreammeoInjected) {
   /* noop */
 } else {
-  window.VoiceWidgetInjected = true;
+  window.StreammeoInjected = true;
   bootstrap(SCRIPT_EL);
 }
 
 function bootstrap(script: HTMLScriptElement): void {
   const apiKey = script.dataset.apiKey;
-  const lang = script.dataset.lang ?? "ta";
+  const lang = script.dataset.lang ?? "en";
   const backend =
     script.dataset.backendUrl ?? `${window.location.protocol}//${window.location.hostname}:3001`;
 
   if (!(apiKey && apiKey.length > 10)) {
-    console.error("VoiceWidget: data-api-key is required");
+    console.error("Streammeo: data-api-key is required");
     return;
   }
 
   const host = document.createElement("div");
-  host.id = `vw-${crypto.randomUUID().slice(0, 8)}`;
+  host.id = `sm-${crypto.randomUUID().slice(0, 8)}`;
   document.body.appendChild(host);
 
   const shadow = host.attachShadow({ mode: "open" });
@@ -53,7 +53,7 @@ function bootstrap(script: HTMLScriptElement): void {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "mic idle";
-  btn.setAttribute("aria-label", "Voice support");
+  btn.setAttribute("aria-label", "Voice customer support");
   btn.innerHTML =
     `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 14a3 3 0 003-3V7a3 3 0 10-6 0v4a3 3 0 003 3z"/><path d="M19 11a7 7 0 11-14 0M12 18v4M9 21h6"/></svg>`;
 
@@ -136,6 +136,9 @@ function bootstrap(script: HTMLScriptElement): void {
 
   let recorder: MediaRecorder | undefined;
   let stream: MediaStream | undefined;
+  /** Full utterance blobs; merged on stop into one WebM for the STT API (concatenating timeslice chunks is invalid). */
+  const micChunks: Blob[] = [];
+  let emitEndAfterRecorderStop = false;
   let vadRaf = 0;
   let vadCtx: AudioContext | undefined;
   let vadSilenceFrames = 0;
@@ -151,7 +154,7 @@ function bootstrap(script: HTMLScriptElement): void {
   async function toggleMic(): Promise<void> {
     if (recorder?.state === "recording") {
       if (!endedByVad) {
-        socket.emit("end");
+        emitEndAfterRecorderStop = true;
       }
       stopMic(false);
       setUi(btn, panel, "idle");
@@ -165,19 +168,19 @@ function bootstrap(script: HTMLScriptElement): void {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       wavChunks.length = 0;
+      micChunks.length = 0;
       endedByVad = false;
 
       recorder = pickRecorder(stream);
 
       recorder.addEventListener("dataavailable", (ev: BlobEvent) => {
         if (ev.data && ev.data.size > 0) {
-          void ev.data.arrayBuffer().then((ab) => {
-            socket.emit("audio", new Uint8Array(ab));
-          });
+          micChunks.push(ev.data);
         }
       });
 
-      recorder.start(180);
+      /* No timeslice: one well-formed WebM on stop; avoids invalid concat on the server. */
+      recorder.start();
       startVAD(stream);
 
       setUi(btn, panel, "listening");
@@ -219,7 +222,7 @@ function bootstrap(script: HTMLScriptElement): void {
       } else if (heardSpeech && vadSilenceFrames++ >= silenceNeeded) {
         vadRaf && cancelAnimationFrame(vadRaf);
         endedByVad = true;
-        socket.emit("end");
+        emitEndAfterRecorderStop = true;
         stopMic(false);
         return;
       }
@@ -233,12 +236,50 @@ function bootstrap(script: HTMLScriptElement): void {
     vadRaf = 0;
     void vadCtx?.close().catch(() => undefined);
     vadCtx = undefined;
-    recorder?.stop();
+
+    const rec = recorder;
+    const media = stream;
     recorder = undefined;
-    stream?.getTracks().forEach((t) => t.stop());
     stream = undefined;
     heardSpeech = false;
-    if (resetUi) setUi(btn, panel, "idle");
+
+    const finishTracks = (): void => {
+      media?.getTracks().forEach((t) => t.stop());
+      if (resetUi) setUi(btn, panel, "idle");
+    };
+
+    if (rec && rec.state === "recording") {
+      const mime = rec.mimeType;
+      const shouldEnd = emitEndAfterRecorderStop;
+      emitEndAfterRecorderStop = false;
+      rec.addEventListener(
+        "stop",
+        () => {
+          void (async () => {
+            try {
+              const blob = new Blob(micChunks, { type: mime });
+              micChunks.length = 0;
+              if (blob.size >= 32) {
+                const ab = await blob.arrayBuffer();
+                socket.emit("audio", new Uint8Array(ab));
+              }
+              if (shouldEnd) {
+                socket.emit("end");
+              }
+            } finally {
+              finishTracks();
+            }
+          })();
+        },
+        { once: true },
+      );
+      rec.stop();
+      return;
+    }
+
+    emitEndAfterRecorderStop = false;
+    micChunks.length = 0;
+    finishTracks();
   }
 }
 
@@ -292,13 +333,13 @@ const css = `
 .toast{width:320px;background:#111827;color:#fff;padding:8px 12px;font-size:12px;line-height:1.35;border-radius:10px;box-shadow:0 10px 30px rgb(15 23 42 / .15);}
 .mic{width:56px;height:56px;border-radius:999px;border:none;cursor:pointer;display:grid;place-items:center;background:#e5e7eb;color:#111;box-shadow:0 10px 30px rgb(15 23 42 / .15);transition:transform .16s ease;}
 .mic:hover{transform:translateY(-1px);}
-.mic.listening{background:#fecaca;color:#7f1d1d;animation:vw-pulse 1.1s ease-in-out infinite;}
+.mic.listening{background:#fecaca;color:#7f1d1d;animation:sm-pulse 1.1s ease-in-out infinite;}
 .mic.thinking{background:#bfdbfe;color:#1e3a8a;}
-.mic.speaking{background:#bbf7d0;color:#14532d;animation:vw-pulse 1.1s ease-in-out infinite;}
+.mic.speaking{background:#bbf7d0;color:#14532d;animation:sm-pulse 1.1s ease-in-out infinite;}
 .mic.idle{background:#e5e7eb;}
-@keyframes vw-pulse{0%{box-shadow:0 0 0 0 rgb(239 68 68 / .45);}70%{box-shadow:0 0 0 14px rgb(239 68 68 / 0);}100%{box-shadow:0 0 0 0 rgb(239 68 68 / 0);}}
-.spinner{width:22px;height:22px;border-radius:50%;border:3px solid #1e3a8a;border-top-color:transparent;animation:vw-spin .8s linear infinite;}
-@keyframes vw-spin{to{transform:rotate(360deg);}}
+@keyframes sm-pulse{0%{box-shadow:0 0 0 0 rgb(239 68 68 / .45);}70%{box-shadow:0 0 0 14px rgb(239 68 68 / 0);}100%{box-shadow:0 0 0 0 rgb(239 68 68 / 0);}}
+.spinner{width:22px;height:22px;border-radius:50%;border:3px solid #1e3a8a;border-top-color:transparent;animation:sm-spin .8s linear infinite;}
+@keyframes sm-spin{to{transform:rotate(360deg);}}
 `;
 
 function playBuffer(ctx: AudioContext, buffer: AudioBuffer): Promise<void> {

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voice support preview</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: oklch(0.78 0.011 76);
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      (function () {
+        function onMessage(event) {
+          if (event.origin !== window.location.origin) return;
+          var d = event.data;
+          if (!d || d.type !== "streammeo-playground-init") return;
+          window.removeEventListener("message", onMessage);
+          var s = document.createElement("script");
+          s.src = "/widget.js";
+          s.async = true;
+          s.setAttribute("data-api-key", d.apiKey);
+          if (d.lang) s.setAttribute("data-lang", d.lang);
+          if (d.backendUrl && String(d.backendUrl).length > 0) {
+            s.setAttribute("data-backend-url", d.backendUrl);
+          }
+          document.body.appendChild(s);
+        }
+        window.addEventListener("message", onMessage);
+      })();
+    </script>
+  </body>
+</html>

@@ -3,14 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import type { Workspace } from "../types";
 
-const PREVIEW_TM =
-  "Vanakkam! Naan {agent}. Ungalukku epadi udavi seiyalaam?"; /* Tamil onboarding line */
+const PREVIEW_EN = "Hi, I'm {agent}. How can I help you today?";
 
 export function SettingsPage(): ReactElement {
   const [ws, setWs] = useState<Workspace | null>(null);
   const [name, setName] = useState("");
   const [agentName, setAgentName] = useState("");
-  const [language, setLanguage] = useState<string>("ta");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
@@ -20,14 +18,13 @@ export function SettingsPage(): ReactElement {
       setWs(data);
       setName(data.name);
       setAgentName(data.agentName);
-      setLanguage(data.language);
       setSystemPrompt(data.systemPrompt);
     }
     void load();
   }, []);
 
   const preview = useMemo(
-    () => PREVIEW_TM.replace("{agent}", agentName || ws?.agentName || "Priya"),
+    () => PREVIEW_EN.replace("{agent}", agentName || ws?.agentName || "Alex"),
     [agentName, ws?.agentName],
   );
 
@@ -36,90 +33,83 @@ export function SettingsPage(): ReactElement {
     await api.patch("/workspace", {
       name,
       agentName,
-      language,
+      language: "en",
       systemPrompt,
     });
-    setToast("Saved!");
-    window.setTimeout(() => setToast(null), 2600);
+    setToast("Saved");
+    window.setTimeout(() => setToast(null), 2200);
   }
 
+  const embedSnippet =
+    ws?.apiKey !== undefined && ws.apiKey.length > 0
+      ? `<script src="…/widget.js" data-api-key="${ws.apiKey}" data-backend-url="…"></script>`
+      : "";
+
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Workspace</h1>
-        <p className="text-sm text-slate-400">Tune how VoiceWidget responds on your storefront.</p>
-      </div>
+    <div className="mx-auto flex max-w-2xl flex-col gap-10">
+      <header>
+        <h1 className="vw-page-title">Workspace</h1>
+        <p className="vw-page-lede">
+          How your support agent introduces itself and behaves on every voice call. Speech is English; tune tone and
+          boundaries in the system prompt.
+        </p>
+      </header>
 
       {ws?.apiKey ? (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-400">
-          <span className="font-semibold text-slate-200">Embed key</span>{" "}
-          <span className="font-mono text-violet-200">{ws.apiKey}</span>
-          <span className="mt-2 block text-slate-500">
-            Use with{" "}
-            <code className="text-slate-300">
-              &lt;script src="…widget.js" data-api-key="{ws.apiKey}" data-backend-url="…"&gt;
-            </code>
-          </span>
-        </div>
+        <section className="vw-panel space-y-3 p-5 text-sm">
+          <div>
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-vw-muted">Embed key</h2>
+            <p className="mt-2 font-mono text-sm text-vw-fg-soft break-all">{ws.apiKey}</p>
+          </div>
+          <p className="text-xs leading-relaxed text-vw-muted">Paste on your site as:</p>
+          <pre className="overflow-x-auto rounded-lg border border-vw-border bg-vw-bg p-3 text-xs leading-relaxed text-vw-fg-soft">
+            {embedSnippet}
+          </pre>
+        </section>
       ) : null}
 
-      <form onSubmit={submit} className="space-y-6 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-        <label className="block text-sm text-slate-200">
-          Store name
+      <form onSubmit={submit} className="vw-panel space-y-6 p-6 sm:p-8">
+        <label className="vw-field-label">
+          Workspace name
           <input
             required
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+            className="vw-input"
             value={name}
             onChange={(evt) => setName(evt.target.value)}
           />
         </label>
-        <label className="block text-sm text-slate-200">
+        <label className="vw-field-label">
           Agent display name
           <input
             required
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+            className="vw-input"
             value={agentName}
             onChange={(evt) => setAgentName(evt.target.value)}
           />
         </label>
-        <label className="block text-sm text-slate-200">
-          Language for STT/TTS
-          <select
-            value={language}
-            onChange={(evt) => setLanguage(evt.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
-          >
-            <option value="ta">Tamil</option>
-            <option value="hi">Hindi</option>
-            <option value="en">English</option>
-          </select>
-        </label>
-        <label className="block text-sm text-slate-200">
-          System prompt ({systemPrompt.length} chars)
+        <p className="text-xs leading-relaxed text-vw-muted">
+          Voice recognition and spoken replies use <span className="font-medium text-vw-fg-soft">English</span>{" "}
+          (Deepgram STT / TTS).
+        </p>
+        <label className="vw-field-label">
+          System prompt ({systemPrompt.length} characters)
           <textarea
             required
             value={systemPrompt}
             rows={6}
             onChange={(evt) => setSystemPrompt(evt.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-white"
+            className="vw-input font-mono text-xs leading-relaxed"
           />
         </label>
-        <section className="rounded-lg bg-slate-950/70 p-3 text-xs text-slate-300 ring-1 ring-slate-800">
-          Live preview Tamil phrase:{' '}
-          <span className="text-violet-200">{preview}</span>
+        <section className="rounded-lg border border-vw-border bg-vw-bg px-4 py-3 text-xs leading-relaxed text-vw-fg-soft">
+          <span className="font-medium text-vw-muted">Greeting preview: </span>
+          {preview}
         </section>
-        <button
-          type="submit"
-          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500"
-        >
+        <button type="submit" className="vw-btn-primary">
           Save workspace
         </button>
       </form>
-      {toast ? (
-        <div className="fixed bottom-10 right-6 rounded-xl bg-emerald-600 px-5 py-3 text-sm shadow-lg shadow-emerald-900/60">
-          {toast}
-        </div>
-      ) : null}
+      {toast ? <div className="vw-toast">{toast}</div> : null}
     </div>
   );
 }

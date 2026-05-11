@@ -1,70 +1,112 @@
-import Anthropic from "@anthropic-ai/sdk";
-import type {
-  Message,
-  MessageParam,
-  Tool,
-} from "@anthropic-ai/sdk/resources/messages";
+import Groq from "groq-sdk";
+import type { LlmTool } from "../tools/registry";
 
-export const CLAUDE_MODEL = "claude-sonnet-4-20250514";
+export const GROQ_MODEL = "llama-3.3-70b-versatile";
+
+export type LlmMessage =
+  | Readonly<{ role: "system"; content: string }>
+  | Readonly<{ role: "user"; content: string }>
+  | Readonly<{
+      role: "assistant";
+      content: string;
+      tool_calls?: ReadonlyArray<{
+        id: string;
+        type: "function";
+        function: {
+          name: string;
+          arguments: string;
+        };
+      }>;
+    }>
+  | Readonly<{ role: "tool"; tool_call_id: string; content: string }>;
 
 export type AssistantTurnOutcome = Readonly<{
   stopReason: string | null;
-  /** Concatenated visible assistant text blocks for this model turn */
+  /** Visible assistant text for this model turn */
   assistantText: string;
   toolUses: ReadonlyArray<{
     id: string;
     name: string;
     input: Record<string, unknown>;
   }>;
-  /** Exact assistant content blocks (text + tool_use) */
-  assistantContent: Message["content"];
+  assistantMessage: LlmMessage;
 }>;
 
 export async function runAssistantStreamingTurn(params: Readonly<{
-  client: Anthropic;
+  client: Groq;
   systemPrompt: string;
-  messages: MessageParam[];
-  tools: readonly Tool[];
+  messages: LlmMessage[];
+  tools: readonly LlmTool[];
   abortSignal: AbortSignal;
 }>): Promise<AssistantTurnOutcome> {
-  const stream = params.client.messages.stream(
+  const completion = await params.client.chat.completions.create(
     {
-      model: CLAUDE_MODEL,
+      model: GROQ_MODEL,
       max_tokens: 1024,
       temperature: 0.4,
-      system: params.systemPrompt,
-      messages: [...params.messages],
-      tools: [...params.tools],
+      messages: [
+        { role: "system", content: params.systemPrompt },
+        ...params.messages,
+      ] as never,
+      tools: [...params.tools] as never,
+      tool_choice: "auto",
     },
     { signal: params.abortSignal },
   );
-
-  const message = await stream.finalMessage();
+  const choice = completion.choices[0];
+  const rawMessage = choice?.message;
+  const rawToolCalls = rawMessage?.tool_calls ?? [];
 
   const toolUses: Array<{
     id: string;
     name: string;
     input: Record<string, unknown>;
   }> = [];
-  const textParts: string[] = [];
-
-  for (const block of message.content) {
-    if (block.type === "text" && block.text) {
-      textParts.push(block.text);
-    }
-    if (block.type === "tool_use") {
+  for (const call of rawToolCalls) {
+    if (call.type === "function") {
+      const argsRaw = call.function.arguments ?? "{}";
+      let input: Record<string, unknown> = {};
+      try {
+        const parsed = JSON.parse(argsRaw) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          input = parsed as Record<string, unknown>;
+        }
+      } catch {
+        input = {};
+      }
       toolUses.push({
-        id: block.id,
-        name: block.name,
-        input: (block.input ?? {}) as Record<string, unknown>,
+        id: call.id,
+        name: call.function.name,
+        input,
       });
     }
   }
 
+  const assistantText =
+    typeof rawMessage?.content === "string" ? rawMessage.content.trim() : "";
+  const assistantMessage: LlmMessage = {
+    role: "assistant",
+    content: assistantText,
+    ...(rawToolCalls.length > 0
+      ? {
+          tool_calls: rawToolCalls
+            .filter((c) => c.type === "function")
+            .map((c) => ({
+              id: c.id,
+              type: "function" as const,
+              function: {
+                name: c.function.name,
+                arguments: c.function.arguments ?? "{}",
+              },
+            })),
+        }
+      : {}),
+  };
+
   return {
-    stopReason: message.stop_reason,
-    assistantText: textParts.join("").trim(),
+    stopReason: choice?.finish_reason ?? null,
+    assistantText,
     toolUses,
-    assistantContent: message.content,
+    assistantMessage,
   };
 }

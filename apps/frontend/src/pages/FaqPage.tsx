@@ -14,7 +14,14 @@ export function FaqPage(): ReactElement {
   }
 
   useEffect(() => {
-    void refresh();
+    let cancelled = false;
+    void (async () => {
+      const { data } = await api.get<FaqRow[]>("/workspace/faq");
+      if (!cancelled) setRows(data);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function add(evt: FormEvent): Promise<void> {
@@ -31,67 +38,66 @@ export function FaqPage(): ReactElement {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">FAQ corpus</h1>
-        <p className="text-sm text-slate-400">
-          These entries power the{" "}
-          <code className="text-xs text-violet-300">search_faq</code> tool Claude can call mid-call.
+    <div className="mx-auto flex max-w-3xl flex-col gap-10">
+      <header>
+        <h1 className="vw-page-title">FAQ library</h1>
+        <p className="vw-page-lede">
+          Curated answers for customer support. Entries power the{" "}
+          <code className="rounded bg-vw-bg px-1.5 py-0.5 font-mono text-xs text-vw-fg-soft">search_faq</code> tool
+          during live voice calls so replies stay on-policy.
         </p>
-      </div>
+      </header>
 
-      <form onSubmit={add} className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <label className="block text-sm text-slate-200">
+      <form onSubmit={add} className="vw-panel space-y-5 p-6 sm:p-7">
+        <label className="vw-field-label">
           Question
           <textarea
             value={question}
             required
             rows={3}
             onChange={(evt) => setQuestion(evt.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+            className="vw-input"
           />
         </label>
-        <label className="block text-sm text-slate-200">
+        <label className="vw-field-label">
           Answer
           <textarea
             value={answer}
             rows={5}
             required
             onChange={(evt) => setAnswer(evt.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+            className="vw-input"
           />
         </label>
-        <button
-          type="submit"
-          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500"
-        >
+        <button type="submit" className="vw-btn-primary">
           Add FAQ entry
         </button>
       </form>
 
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-300">Stored FAQs</h2>
-        <ul className="space-y-3">
-          {rows.map((f) => (
-            <li
-              key={f.id}
-              className="space-y-1 rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm text-slate-100"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <p className="font-medium text-white">{f.question}</p>
-                <button
-                  type="button"
-                  onClick={() => void remove(f.id)}
-                  className="shrink-0 text-xs text-rose-400 hover:text-rose-300"
-                >
-                  Delete
-                </button>
-              </div>
-              <p className="text-xs text-slate-400">{f.answer}</p>
-            </li>
-          ))}
+      <section>
+        <h2 className="text-sm font-semibold text-vw-fg">Stored FAQs</h2>
+        <ul className="mt-4 space-y-3">
+          {rows.length === 0 ? (
+            <li className="vw-panel px-4 py-8 text-center text-sm text-vw-muted">No entries yet. Add a pair above.</li>
+          ) : (
+            rows.map((f) => (
+              <li key={f.id} className="vw-panel flex flex-col gap-2 p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-medium leading-snug text-vw-fg">{f.question}</p>
+                  <button
+                    type="button"
+                    onClick={() => void remove(f.id)}
+                    className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-vw-danger-soft transition-colors duration-vw ease-out-expo hover:bg-vw-bg hover:text-vw-danger"
+                  >
+                    Delete
+                  </button>
+                </div>
+                <p className="text-sm leading-relaxed text-vw-muted">{f.answer}</p>
+              </li>
+            ))
+          )}
         </ul>
-      </div>
+      </section>
     </div>
   );
 }

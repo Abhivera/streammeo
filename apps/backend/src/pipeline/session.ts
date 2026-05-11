@@ -1,6 +1,6 @@
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { Socket } from "socket.io";
-import type { WorkspaceDTO } from "@voicewidget/db";
+import type { WorkspaceDTO } from "@streammeo/db";
+import type { LlmMessage } from "./llm";
 
 export type SessionState = "idle" | "listening" | "processing" | "speaking" | "ended";
 
@@ -18,8 +18,8 @@ export class VoiceSession {
   state: SessionState = "idle";
   /** Human-readable conversation for logs + DB message rows */
   conversation: ConvTurn[] = [];
-  /** Anthropic message history including tool calls/results */
-  anthropicTurns: MessageParam[] = [];
+  /** LLM message history including tool calls/results */
+  llmTurns: LlmMessage[] = [];
   audioBuffer: Buffer[] = [];
   abortController: AbortController | null = null;
 

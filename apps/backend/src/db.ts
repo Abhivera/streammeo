@@ -1,19 +1,15 @@
-import { createVoiceWidgetStore, type VoiceWidgetStore } from "@voicewidget/db";
+import { createStreammeoStore, type StreammeoStore } from "@streammeo/db";
 import type { AppConfig } from "./config";
-import { dynamoCredentialPair } from "./config";
 
-let store: VoiceWidgetStore | undefined;
+let store: StreammeoStore | undefined;
 
 export function initStore(config: AppConfig): void {
-  store = createVoiceWidgetStore({
-    region: config.AWS_REGION,
-    endpoint: config.DYNAMODB_ENDPOINT,
-    credentials: dynamoCredentialPair(config),
-    tablePrefix: config.DYNAMODB_TABLE_PREFIX,
+  store = createStreammeoStore({
+    databasePath: config.SQLITE_PATH,
   });
 }
 
-export function getStore(): VoiceWidgetStore {
+export function getStore(): StreammeoStore {
   if (!store) {
     throw new Error("Data store not initialized — call initStore() at startup");
   }

@@ -1,0 +1,14 @@
+# Local demo / seed overrides only — not loaded by the app automatically.
+#
+# 1) Copy this file (values are placeholders for local testing):
+#    cp scripts/demo-env.example scripts/demo.local.env
+# 2) Edit scripts/demo.local.env if you want different demo credentials.
+# 3) Prefix commands so these variables are set (see scripts/with-demo-env.sh):
+#    ./scripts/with-demo-env.sh npm run db:seed
+#    ./scripts/with-demo-env.sh npm run dev:backend
+#
+# scripts/demo.local.env is gitignored — do not commit secrets.
+
+DEMO_MODE=true
+DEMO_SEED_EMAIL=moviesabhijit@gmail.com
+DEMO_SEED_PASSWORD=abhivera@A1

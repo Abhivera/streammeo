@@ -13,13 +13,20 @@ interface Analytics {
   resolutionRate: number;
   topQuestions: { text: string; count: number }[];
   minutesUsed: number;
-  minutesLimit: number;
 }
 
 export function DashboardPage(): ReactElement {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
+
+  useEffect(() => {
+    void api
+      .get<{ demoMode?: boolean }>("/health")
+      .then((r) => setDemoMode(Boolean(r.data.demoMode)))
+      .catch(() => setDemoMode(false));
+  }, []);
 
   useEffect(() => {
     async function load(): Promise<void> {
@@ -37,131 +44,178 @@ export function DashboardPage(): ReactElement {
     void load();
   }, []);
 
-  if (error)
-    return <div className="rounded-lg border border-rose-500/40 p-4 text-rose-200">{error}</div>;
-  if (!analytics) return <div className="text-slate-400">Loading…</div>;
+  if (error) {
+    return (
+      <div
+        className="vw-panel max-w-xl border-vw-danger-edge bg-vw-surface p-4 text-sm text-vw-danger-soft"
+        role="alert"
+      >
+        {error}
+      </div>
+    );
+  }
 
-  const usagePct =
-    analytics.minutesLimit > 0
-      ? Math.min(100, Math.round((analytics.minutesUsed / analytics.minutesLimit) * 100))
-      : 0;
+  if (!analytics) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-8" aria-busy="true" aria-label="Loading dashboard">
+        <div className="h-8 w-48 animate-pulse rounded-lg bg-vw-elevated" />
+        <div className="h-4 w-72 max-w-full animate-pulse rounded bg-vw-elevated" />
+        <div className="flex flex-wrap gap-3">
+          {[1, 2, 3, 4].map((k) => (
+            <div key={k} className="h-14 flex-1 min-w-[5.5rem] max-w-[9rem] animate-pulse rounded-lg bg-vw-elevated" />
+          ))}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-[1fr_17rem]">
+          <div className="h-40 animate-pulse rounded-xl bg-vw-elevated" />
+          <div className="h-40 animate-pulse rounded-xl bg-vw-elevated" />
+        </div>
+        <div className="h-56 animate-pulse rounded-xl bg-vw-elevated" />
+      </div>
+    );
+  }
+
+  const stripItems = [
+    { k: "Today", v: analytics.callsToday.toString() },
+    { k: "This week", v: analytics.callsThisWeek.toString() },
+    { k: "All time", v: analytics.totalCalls.toString() },
+    {
+      k: "Resolved",
+      v: `${analytics.resolutionRate}%`,
+      hint: `${analytics.resolvedCalls} marked`,
+    },
+  ];
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-10">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Overview</h1>
-        <p className="text-sm text-slate-400">
-          Conversations routed through Sarvam + Claude with live widget audio.
+    <div className="mx-auto flex max-w-5xl flex-col gap-10">
+      <header>
+        <h1 className="vw-page-title">Overview</h1>
+        <p className="vw-page-lede">
+          Voice support at a glance: session volume, resolution, minutes, and the questions customers ask most often.
         </p>
-      </div>
+      </header>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Stat label="Calls today" value={analytics.callsToday.toString()} />
-        <Stat label="Calls this week" value={analytics.callsThisWeek.toString()} />
-        <Stat label="Total calls" value={analytics.totalCalls.toString()} />
-        <Stat
-          label="Resolution rate"
-          value={`${analytics.resolutionRate}%`}
-          sub={`${analytics.resolvedCalls} resolved`}
-        />
-      </div>
+      {demoMode ? (
+        <section
+          className="vw-panel border-vw-accent-edge bg-vw-elevated p-4 text-sm text-vw-fg-soft sm:p-5"
+          aria-label="Widget demo hint"
+        >
+          <p className="font-medium text-vw-fg">Support flow smoke test (demo voice)</p>
+          <p className="mt-2 text-vw-muted">
+            Embed the script from <strong className="text-vw-fg-soft">Settings</strong> using your workspace{" "}
+            <code className="rounded bg-vw-bg px-1 py-0.5 font-mono text-xs">data-api-key</code>. With demo mode, the
+            backend skips live models: say a few words, wait for silence so the client sends “end”, then you should hear
+            a short tone and see a canned support-style transcript in the panel.
+          </p>
+        </section>
+      ) : null}
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-          <h2 className="mb-2 text-sm uppercase tracking-wide text-slate-500">Minutes</h2>
-          <div className="mb-2 flex justify-between text-sm text-slate-300">
-            <span>
-              {analytics.minutesUsed} / {analytics.minutesLimit}
-            </span>
-            <span>{usagePct}%</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-            <div
-              className="h-2 rounded-full bg-violet-500 transition-[width]"
-              style={{ width: `${usagePct}%` }}
-            />
-          </div>
-          <Link
-            to="/settings/billing"
-            className="mt-3 inline-block text-sm text-violet-300 hover:underline"
+      <section
+        className="vw-panel flex flex-wrap items-stretch divide-x divide-vw-border overflow-hidden p-1"
+        aria-label="Support call summary"
+      >
+        {stripItems.map((item, i) => (
+          <div
+            key={item.k}
+            className={`flex min-w-[6.5rem] flex-1 flex-col justify-center px-4 py-3 sm:px-5 ${i === 0 ? "sm:pl-5" : ""}`}
           >
-            Billing & upgrades
-          </Link>
-        </div>
+            <span className="text-[0.7rem] font-medium uppercase tracking-wide text-vw-muted">{item.k}</span>
+            <span className="mt-1 text-xl font-semibold tabular-nums text-vw-fg sm:text-2xl">{item.v}</span>
+            {"hint" in item && item.hint ? (
+              <span className="mt-0.5 text-xs text-vw-muted">{item.hint}</span>
+            ) : null}
+          </div>
+        ))}
+      </section>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-          <h2 className="mb-4 text-sm uppercase tracking-wide text-slate-500">Top questions</h2>
-          <ol className="space-y-2 text-sm text-slate-200">
+      <div className="grid gap-8 lg:grid-cols-[1fr_minmax(0,18.5rem)] lg:items-start">
+        <section className="vw-panel p-6 sm:p-7">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-vw-fg">Voice minutes</h2>
+              <p className="mt-1 max-w-md text-sm text-vw-muted">
+                Total from session length (prototype: tracked for visibility; no checkout or plan tiers wired yet).
+              </p>
+            </div>
+            <p className="text-right text-sm tabular-nums text-vw-fg-soft">
+              <span className="font-semibold text-vw-fg">{analytics.minutesUsed}</span>
+              <span className="text-vw-muted"> min</span>
+            </p>
+          </div>
+          <div className="mt-6 h-2.5 rounded-full bg-vw-bg" aria-hidden />
+        </section>
+
+        <section className="vw-panel p-5 sm:p-6">
+          <h2 className="text-sm font-semibold text-vw-fg">Top questions</h2>
+          <p className="mt-1 text-xs leading-relaxed text-vw-muted">What customers asked in recent transcripts (sample).</p>
+          <ol className="mt-4 space-y-3 text-sm text-vw-fg-soft">
             {analytics.topQuestions.length === 0 ? (
-              <li className="text-slate-500">No transcripts yet.</li>
+              <li className="rounded-lg bg-vw-bg px-3 py-4 text-center text-vw-muted">No transcripts yet.</li>
             ) : (
               analytics.topQuestions.map((q, i) => (
-                <li key={q.text} className="flex justify-between gap-3">
-                  <span className="line-clamp-2">
-                    {i + 1}. {q.text}
-                  </span>
-                  <span className="shrink-0 text-slate-500">{q.count}×</span>
+                <li key={q.text} className="flex gap-3 border-b border-vw-border-softer pb-3 last:border-0 last:pb-0">
+                  <span className="w-5 shrink-0 pt-0.5 text-right font-mono text-xs text-vw-muted">{i + 1}</span>
+                  <span className="min-w-0 flex-1 leading-snug text-vw-fg-soft">{q.text}</span>
+                  <span className="shrink-0 tabular-nums text-vw-muted">{q.count}×</span>
                 </li>
               ))
             )}
           </ol>
-        </div>
+        </section>
       </div>
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50">
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3">
-          <h2 className="text-lg font-semibold text-white">Recent sessions</h2>
-          <Link to="/sessions" className="text-sm text-violet-300 hover:underline">
-            View all
+      <section className="vw-panel overflow-hidden">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-vw-border px-5 py-4 sm:px-6">
+          <div>
+            <h2 className="text-lg font-semibold text-vw-fg">Recent sessions</h2>
+            <p className="mt-0.5 text-xs text-vw-muted">Newest support conversations first, up to five.</p>
+          </div>
+          <Link
+            to="/sessions"
+            className="text-sm font-medium text-vw-accent transition-colors duration-vw ease-out-expo hover:text-vw-accent-hover"
+          >
+            All sessions
           </Link>
         </div>
-        <table className="w-full border-collapse text-left text-sm">
-          <thead className="text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="border-b border-slate-800 px-5 py-2">Started</th>
-              <th className="border-b border-slate-800 px-5 py-2">Messages</th>
-              <th className="border-b border-slate-800 px-5 py-2">Resolved</th>
-              <th className="border-b border-slate-800 px-5 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {sessions.map((s) => (
-              <tr key={s.id} className="hover:bg-slate-800/50">
-                <td className="border-b border-slate-900 px-5 py-2 text-slate-300">
-                  {new Date(s.startedAt).toLocaleString()}
-                </td>
-                <td className="border-b border-slate-900 px-5 py-2 text-slate-300">
-                  {s.messageCount}
-                </td>
-                <td className="border-b border-slate-900 px-5 py-2">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs ${
-                      s.resolved ? "bg-emerald-900/70 text-emerald-200" : "bg-slate-800 text-slate-400"
-                    }`}
-                  >
-                    {s.resolved ? "Resolved" : "Open"}
-                  </span>
-                </td>
-                <td className="border-b border-slate-900 px-5 py-2 text-right">
-                  <Link to={`/sessions/${s.id}`} className="text-violet-300 hover:underline">
-                    Open
-                  </Link>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[32rem] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-vw-border bg-vw-table-tint">
+                <th className="vw-table-head px-5 py-2.5 sm:px-6">Started</th>
+                <th className="vw-table-head px-5 py-2.5 sm:px-6">Messages</th>
+                <th className="vw-table-head px-5 py-2.5 sm:px-6">Resolved</th>
+                <th className="vw-table-head px-5 py-2.5 sm:px-6" />
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function Stat(props: Readonly<{ label: string; value: string; sub?: string }>): ReactElement {
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{props.label}</div>
-      <div className="mt-2 text-2xl font-semibold text-white">{props.value}</div>
-      {props.sub ? <div className="text-xs text-slate-400">{props.sub}</div> : null}
+            </thead>
+            <tbody>
+              {sessions.map((s) => (
+                <tr key={s.id} className="border-b border-vw-border-faint transition-colors duration-vw ease-out-expo hover:bg-vw-elevated-hover">
+                  <td className="px-5 py-3 tabular-nums text-vw-fg-soft sm:px-6">
+                    {new Date(s.startedAt).toLocaleString()}
+                  </td>
+                  <td className="px-5 py-3 tabular-nums text-vw-fg-soft sm:px-6">{s.messageCount}</td>
+                  <td className="px-5 py-3 sm:px-6">
+                    <span
+                      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${
+                        s.resolved ? "bg-vw-success-soft text-vw-success-fg" : "bg-vw-elevated text-vw-muted"
+                      }`}
+                    >
+                      {s.resolved ? "Resolved" : "Open"}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-right sm:px-6">
+                    <Link
+                      to={`/sessions/${s.id}`}
+                      className="font-medium text-vw-accent transition-colors duration-vw ease-out-expo hover:text-vw-accent-hover"
+                    >
+                      Open
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

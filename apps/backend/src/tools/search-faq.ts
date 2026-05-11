@@ -2,19 +2,22 @@ import type { RegisteredTool } from "./registry";
 import { getStore } from "../db";
 
 export const searchFaqTool: RegisteredTool = {
-  anthropic: {
-    name: "search_faq",
-    description:
-      "Search the merchant's FAQ knowledge base for answers to common customer questions",
-    input_schema: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "What the customer is asking (keywords or paraphrase)",
+  tool: {
+    type: "function",
+    function: {
+      name: "search_faq",
+      description:
+        "Search the merchant's FAQ knowledge base for answers to common customer questions",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "What the customer is asking (keywords or paraphrase)",
+          },
         },
+        required: ["query"],
       },
-      required: ["query"],
     },
   },
 
