@@ -22,7 +22,7 @@ export function SessionsPage(): ReactElement {
 
   if (error) {
     return (
-      <div className="vw-panel max-w-xl border-vw-danger-edge p-4 text-sm text-vw-danger-soft" role="alert">
+      <div className="vw-panel max-w-xl border-vw-danger-edge p-4 text-sm text-vw-danger" role="alert">
         {error}
       </div>
     );
@@ -44,11 +44,10 @@ export function SessionsPage(): ReactElement {
         <h1 className="vw-page-title">Sessions</h1>
         <p className="vw-page-lede">Support transcripts and tool usage from the voice widget (deflection and follow-up).</p>
       </header>
-      <div className="vw-panel overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[36rem] border-collapse text-left text-sm">
+      <div className="vw-panel">
+        <table className="w-full min-w-0 border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-vw-border bg-vw-table-tint">
+              <tr className="border-b border-vw-border">
                 <th className="vw-table-head px-4 py-3 sm:px-5">Started</th>
                 <th className="vw-table-head px-4 py-3 sm:px-5">Duration</th>
                 <th className="vw-table-head px-4 py-3 sm:px-5">Messages</th>
@@ -67,18 +66,20 @@ export function SessionsPage(): ReactElement {
                 sessions.map((s) => (
                   <tr
                     key={s.id}
-                    className="border-b border-vw-border-faint transition-colors duration-vw ease-out-expo hover:bg-vw-elevated-hover"
+                    className="border-b border-vw-border transition-colors duration-vw ease-out-expo hover:bg-vw-elevated-hover"
                   >
-                    <td className="px-4 py-3 tabular-nums text-vw-fg-soft sm:px-5">
+                    <td className="max-w-[10rem] break-words px-4 py-3 tabular-nums text-vw-fg sm:max-w-none sm:px-5">
                       {new Date(s.startedAt).toLocaleString()}
                     </td>
-                    <td className="px-4 py-3 tabular-nums text-vw-fg-soft sm:px-5">{s.durationSec}s</td>
-                    <td className="px-4 py-3 tabular-nums text-vw-fg-soft sm:px-5">{s.messageCount}</td>
+                    <td className="px-4 py-3 tabular-nums text-vw-fg sm:px-5">{s.durationSec}s</td>
+                    <td className="px-4 py-3 tabular-nums text-vw-fg sm:px-5">{s.messageCount}</td>
                     <td className="px-4 py-3 sm:px-5">
                       <span
-                        className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${
-                          s.resolved ? "bg-vw-success-soft text-vw-success-fg" : "bg-vw-elevated text-vw-muted"
-                        }`}
+                        className={
+                          s.resolved
+                            ? "inline-flex rounded-md bg-vw-success-soft px-2 py-0.5 text-xs font-medium text-vw-success-fg"
+                            : "vw-badge-open py-0.5"
+                        }
                       >
                         {s.resolved ? "Resolved" : "Open"}
                       </span>
@@ -96,7 +97,6 @@ export function SessionsPage(): ReactElement {
               )}
             </tbody>
           </table>
-        </div>
       </div>
     </div>
   );

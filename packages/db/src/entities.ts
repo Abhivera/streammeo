@@ -22,6 +22,8 @@ export type UserDTO = Readonly<{
   email: string;
   password: string;
   createdAt: string;
+  /** Set when the user has signed in with Firebase at least once. */
+  firebaseUid?: string | undefined;
 }>;
 
 export type SessionDTO = Readonly<{

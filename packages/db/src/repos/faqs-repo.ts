@@ -1,9 +1,23 @@
-import type { Database } from "better-sqlite3";
+import type { Collection, Db } from "mongodb";
 import type { FaqDTO } from "../entities";
 import { toFaqDTO } from "../mappers";
 
+type FaqDoc = Readonly<{
+  _id: string;
+  id: string;
+  workspaceId: string;
+  question: string;
+  answer: string;
+  embedding: number[];
+  createdAt: number;
+}>;
+
 export class FaqsRepo {
-  constructor(private readonly db: Database) {}
+  private readonly coll: Collection<FaqDoc>;
+
+  constructor(db: Db) {
+    this.coll = db.collection<FaqDoc>("faqs");
+  }
 
   async put(
     f: Readonly<Omit<FaqDTO, "embedding" | "createdAt">> & {
@@ -11,72 +25,50 @@ export class FaqsRepo {
       createdAtMs: number;
     },
   ): Promise<FaqDTO> {
-    const embeddingJson = JSON.stringify(f.embedding ?? []);
-    this.db
-      .prepare(
-        `
-      INSERT INTO faqs (id, workspace_id, question, answer, embedding_json, created_at)
-      VALUES (@id, @workspaceId, @question, @answer, @embeddingJson, @createdAt)
-    `,
-      )
-      .run({
-        id: f.id,
-        workspaceId: f.workspaceId,
-        question: f.question,
-        answer: f.answer,
-        embeddingJson,
-        createdAt: f.createdAtMs,
-      });
-    const row = this.db
-      .prepare(
-        `
-      SELECT
-        id,
-        workspace_id AS workspaceId,
-        question,
-        answer,
-        embedding_json AS embeddingJson,
-        created_at AS createdAt
-      FROM faqs WHERE workspace_id = ? AND id = ?
-    `,
-      )
-      .get(f.workspaceId, f.id) as Record<string, unknown>;
+    const _id = `${f.workspaceId}::${f.id}`;
+    const embedding = f.embedding ?? [];
+    await this.coll.insertOne({
+      _id,
+      id: f.id,
+      workspaceId: f.workspaceId,
+      question: f.question,
+      answer: f.answer,
+      embedding,
+      createdAt: f.createdAtMs,
+    });
+    const doc = await this.coll.findOne({ _id });
+    if (!doc) throw new Error("FAQ insert failed unexpectedly");
     return toFaqDTO({
-      ...row,
-      embedding: JSON.parse(String(row.embeddingJson ?? "[]")),
+      id: doc.id,
+      workspaceId: doc.workspaceId,
+      question: doc.question,
+      answer: doc.answer,
+      embedding: doc.embedding,
+      createdAt: doc.createdAt,
     });
   }
 
   async listByWorkspaceDescending(workspaceId: string): Promise<FaqDTO[]> {
-    const rows = this.db
-      .prepare(
-        `
-      SELECT
-        id,
-        workspace_id AS workspaceId,
-        question,
-        answer,
-        embedding_json AS embeddingJson,
-        created_at AS createdAt
-      FROM faqs
-      WHERE workspace_id = ?
-      ORDER BY created_at DESC, id DESC
-    `,
-      )
-      .all(workspaceId) as Record<string, unknown>[];
-    return rows.map((it) =>
+    const docs = await this.coll
+      .find({ workspaceId })
+      .sort({ createdAt: -1, id: -1 })
+      .toArray();
+    return docs.map((d) =>
       toFaqDTO({
-        ...it,
-        embedding: JSON.parse(String(it.embeddingJson ?? "[]")),
+        id: d.id,
+        workspaceId: d.workspaceId,
+        question: d.question,
+        answer: d.answer,
+        embedding: d.embedding,
+        createdAt: d.createdAt,
       }),
     );
   }
 
   async delete(workspaceId: string, id: string): Promise<boolean> {
-    const r = this.db
-      .prepare(`DELETE FROM faqs WHERE workspace_id = ? AND id = ?`)
-      .run(workspaceId, id);
-    return r.changes > 0;
+    const _id = `${workspaceId}::${id}`;
+    const r = await this.coll.deleteOne({ _id, workspaceId });
+    return r.deletedCount > 0;
   }
 
   async update(
@@ -84,30 +76,21 @@ export class FaqsRepo {
     id: string,
     patch: Pick<FaqDTO, "question" | "answer">,
   ): Promise<FaqDTO | null> {
-    const r = this.db
-      .prepare(
-        `UPDATE faqs SET question = ?, answer = ? WHERE workspace_id = ? AND id = ?`,
-      )
-      .run(patch.question, patch.answer, workspaceId, id);
-    if (r.changes === 0) return null;
-    const row = this.db
-      .prepare(
-        `
-      SELECT
-        id,
-        workspace_id AS workspaceId,
-        question,
-        answer,
-        embedding_json AS embeddingJson,
-        created_at AS createdAt
-      FROM faqs WHERE workspace_id = ? AND id = ?
-    `,
-      )
-      .get(workspaceId, id) as Record<string, unknown> | undefined;
-    return row
+    const _id = `${workspaceId}::${id}`;
+    const r = await this.coll.updateOne(
+      { _id, workspaceId },
+      { $set: { question: patch.question, answer: patch.answer } },
+    );
+    if (r.matchedCount === 0) return null;
+    const doc = await this.coll.findOne({ _id });
+    return doc
       ? toFaqDTO({
-          ...row,
-          embedding: JSON.parse(String(row.embeddingJson ?? "[]")),
+          id: doc.id,
+          workspaceId: doc.workspaceId,
+          question: doc.question,
+          answer: doc.answer,
+          embedding: doc.embedding,
+          createdAt: doc.createdAt,
         })
       : null;
   }

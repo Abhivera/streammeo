@@ -37,6 +37,7 @@ function serveWidgetJs(): import("vite").Plugin {
 export default defineConfig({
   plugins: [react(), serveWidgetJs()],
   server: {
+    // Dev-only: forward REST and Socket.IO to the backend (MongoDB is used only on the server).
     proxy: {
       "/auth": "http://127.0.0.1:3001",
       "/workspace": "http://127.0.0.1:3001",

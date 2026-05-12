@@ -1,6 +1,6 @@
-import type { Database } from "better-sqlite3";
+import type { Db, MongoClient } from "mongodb";
 import type { MessageDTO, WorkspaceDTO } from "./entities";
-import { openDatabase } from "./sqlite/open";
+import { connectMongo } from "./mongo/connect";
 import { FaqsRepo } from "./repos/faqs-repo";
 import { MessagesRepo } from "./repos/messages-repo";
 import { SessionsRepo } from "./repos/sessions-repo";
@@ -9,9 +9,9 @@ import { UsersRepo } from "./repos/users-repo";
 import { WorkspacesRepo } from "./repos/workspaces-repo";
 
 export type StreammeoStoreInit = Readonly<{
-  databasePath: string;
-  /** When true, skip mkdir and use an existing in-memory handle (tests). */
-  db?: Database | undefined;
+  mongoUri: string;
+  /** Overrides database name from the URI path (default: `streammeo` when URI has no path). */
+  dbName?: string | undefined;
 }>;
 
 export class StreammeoStore {
@@ -22,12 +22,14 @@ export class StreammeoStore {
   readonly toolCalls: ToolCallsRepo;
   readonly faqs: FaqsRepo;
 
-  private readonly db: Database;
-  private readonly ownsDb: boolean;
+  private readonly client: MongoClient;
+  private readonly db: Db;
+  private readonly ownsClient: boolean;
 
-  constructor(db: Database, ownsDb: boolean) {
+  constructor(client: MongoClient, db: Db, ownsClient: boolean) {
+    this.client = client;
     this.db = db;
-    this.ownsDb = ownsDb;
+    this.ownsClient = ownsClient;
     this.users = new UsersRepo(db);
     this.workspaces = new WorkspacesRepo(db);
     this.sessions = new SessionsRepo(db);
@@ -36,20 +38,25 @@ export class StreammeoStore {
     this.faqs = new FaqsRepo(db);
   }
 
-  /** Close the underlying DB file when this store opened it. */
-  close(): void {
-    if (this.ownsDb) {
-      this.db.close();
+  /** Close the client when this store created the connection. */
+  async close(): Promise<void> {
+    if (this.ownsClient) {
+      await this.client.close();
     }
   }
 
   /**
-   * Wipes all rows (users cascade to workspaces, sessions, messages, tool_calls, faqs).
-   * For local `npm run db:seed` resets only — not for production.
+   * Wipes all documents in app collections. For `npm run db:seed` resets only — not for production.
    */
-  clearAllData(): void {
-    this.db.pragma("foreign_keys = ON");
-    this.db.prepare(`DELETE FROM users`).run();
+  async clearAllData(): Promise<void> {
+    await Promise.all([
+      this.db.collection("messages").deleteMany({}),
+      this.db.collection("toolCalls").deleteMany({}),
+      this.db.collection("faqs").deleteMany({}),
+      this.db.collection("sessions").deleteMany({}),
+      this.db.collection("workspaces").deleteMany({}),
+      this.db.collection("users").deleteMany({}),
+    ]);
   }
 
   listMessagesForSessionAsc(sessionId: string): Promise<MessageDTO[]> {
@@ -71,30 +78,31 @@ export class StreammeoStore {
     minuteDelta: number;
   }>): Promise<WorkspaceDTO | null> {
     const md = Math.max(0, Math.floor(params.minuteDelta));
-    const tx = this.db.transaction(() => {
-      const s = this.db
-        .prepare(
-          `UPDATE sessions SET ended_at = ?, duration_sec = ? WHERE id = ? AND workspace_id = ?`,
-        )
-        .run(params.endedAt, params.durationSec, params.sessionId, params.workspaceId);
-      if (s.changes === 0) {
-        throw new Error("Session finalize: row missing or wrong workspace");
-      }
-      if (md > 0) {
-        this.db
-          .prepare(`UPDATE workspaces SET minutes_used = minutes_used + ? WHERE id = ?`)
-          .run(md, params.workspaceId);
-      }
-    });
-    tx();
+    type SessionRow = Readonly<{
+      _id: string;
+      workspaceId: string;
+      endedAt: string | null;
+      durationSec: number;
+    }>;
+    type WorkspaceRow = Readonly<{ _id: string }>;
+    const sessions = this.db.collection<SessionRow>("sessions");
+    const workspaces = this.db.collection<WorkspaceRow>("workspaces");
+
+    const s = await sessions.updateOne(
+      { _id: params.sessionId, workspaceId: params.workspaceId },
+      { $set: { endedAt: params.endedAt, durationSec: params.durationSec } },
+    );
+    if (s.matchedCount === 0) {
+      throw new Error("Session finalize: row missing or wrong workspace");
+    }
+    if (md > 0) {
+      await workspaces.updateOne({ _id: params.workspaceId }, { $inc: { minutesUsed: md } });
+    }
     return this.workspaces.findById(params.workspaceId);
   }
 }
 
-export function createStreammeoStore(init: StreammeoStoreInit): StreammeoStore {
-  if (init.db) {
-    return new StreammeoStore(init.db, false);
-  }
-  const db = openDatabase(init.databasePath);
-  return new StreammeoStore(db, true);
+export async function createStreammeoStore(init: StreammeoStoreInit): Promise<StreammeoStore> {
+  const { client, db } = await connectMongo(init.mongoUri, init.dbName);
+  return new StreammeoStore(client, db, true);
 }

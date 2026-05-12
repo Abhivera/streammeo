@@ -6,6 +6,24 @@ import type { Workspace } from "../types";
 
 const PLAYGROUND_INIT = "streammeo-playground-init";
 
+function MicPreviewIcon(): ReactElement {
+  return (
+    <svg
+      className="h-14 w-14 text-vw-accent"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Z" />
+      <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v3M8 21h8" />
+    </svg>
+  );
+}
+
 function widgetBackendUrl(): string {
   const u = import.meta.env.VITE_API_URL?.trim();
   return u && u.length > 0 ? u : "";
@@ -31,7 +49,6 @@ export function PlaygroundPage(): ReactElement {
       {
         type: PLAYGROUND_INIT,
         apiKey: workspace.apiKey,
-        lang: workspace.language,
         backendUrl: widgetBackendUrl(),
       },
       window.location.origin,
@@ -50,7 +67,7 @@ export function PlaygroundPage(): ReactElement {
   if (loadError) {
     return (
       <div
-        className="mx-auto max-w-2xl rounded-xl border border-vw-danger-edge bg-vw-bg px-5 py-4 text-sm text-vw-danger-soft"
+        className="mx-auto max-w-2xl rounded-xl border border-vw-danger-edge bg-vw-surface px-5 py-4 text-sm text-vw-danger"
         role="alert"
       >
         {loadError}
@@ -60,8 +77,15 @@ export function PlaygroundPage(): ReactElement {
 
   if (!workspace) {
     return (
-      <div className="mx-auto max-w-2xl animate-pulse rounded-xl border border-vw-border bg-vw-surface px-5 py-10 text-center text-sm text-vw-muted">
-        Loading playground…
+      <div className="mx-auto flex max-w-2xl flex-col items-center justify-center gap-5 rounded-xl border border-vw-border bg-vw-surface px-8 py-16 text-center shadow-vw sm:py-20">
+        <MicPreviewIcon />
+        <div className="max-w-sm space-y-2">
+          <p className="text-base font-semibold tracking-tight text-vw-headline">Loading your playground…</p>
+          <p className="text-sm leading-relaxed text-vw-muted">
+            In a moment you&apos;ll see the same embed your customers get: a mic in the corner of the preview. When it
+            appears, tap it and allow the microphone so silence detection and replies can work.
+          </p>
+        </div>
       </div>
     );
   }
@@ -78,12 +102,12 @@ export function PlaygroundPage(): ReactElement {
       </header>
 
       <section className="vw-panel space-y-0 overflow-hidden p-0">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-vw-border-softer px-5 py-4 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-vw-border px-5 py-4 sm:px-6">
           <div className="text-sm">
-            <span className="text-vw-fg-soft">Workspace </span>
-            <span className="font-semibold text-vw-fg">{workspace.name}</span>
-            <span className="text-vw-fg-soft"> · </span>
-            <span className="text-vw-fg-soft">lang </span>
+            <span className="text-vw-muted">Workspace </span>
+            <span className="font-semibold text-vw-headline">{workspace.name}</span>
+            <span className="text-vw-muted"> · </span>
+            <span className="text-vw-muted">lang </span>
             <span className="rounded-md bg-vw-elevated px-1.5 py-0.5 font-medium tabular-nums text-vw-fg">
               {workspace.language}
             </span>
@@ -95,11 +119,11 @@ export function PlaygroundPage(): ReactElement {
         <div className="space-y-3 px-5 pb-5 pt-4 sm:px-6">
           <p className="vw-hint">
             Mic access required in the browser. Run the API (for example{" "}
-            <code className="rounded bg-vw-bg px-1 py-0.5 font-mono text-[0.7rem] text-vw-fg-soft ring-1 ring-vw-border-faint">
+            <code className="rounded bg-vw-keywell px-1 py-0.5 font-mono text-[0.7rem] text-vw-fg ring-1 ring-vw-border">
               npm run dev:backend
             </code>
             ). If the button never loads, build the widget:{" "}
-            <code className="rounded bg-vw-bg px-1 py-0.5 font-mono text-[0.7rem] text-vw-fg-soft ring-1 ring-vw-border-faint">
+            <code className="rounded bg-vw-keywell px-1 py-0.5 font-mono text-[0.7rem] text-vw-fg ring-1 ring-vw-border">
               npm run -w @streammeo/widget build
             </code>
             .
@@ -108,12 +132,12 @@ export function PlaygroundPage(): ReactElement {
             <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-vw-muted">
               Live preview
             </p>
-            <div className="rounded-2xl border border-vw-border bg-vw-bg p-2 shadow-vw-lg ring-1 ring-vw-border-faint sm:p-3">
-              <div className="overflow-hidden rounded-xl border border-vw-border-faint bg-vw-embed-preview-muted shadow-inner">
+            <div className="rounded-2xl border border-vw-border bg-vw-keywell p-2 shadow-vw-lg ring-1 ring-vw-border sm:p-3">
+              <div className="overflow-hidden rounded-xl border border-vw-border bg-vw-embed-preview-muted shadow-inner ring-1 ring-vw-accent/10">
                 <iframe
                   ref={iframeRef}
                   title="Voice support preview"
-                  className="h-[min(70vh,560px)] w-full border-0 bg-vw-embed-preview-muted"
+                  className="h-[min(70vh,560px)] w-full border-0 bg-transparent"
                   src="/playground-widget-host.html"
                   onLoad={onIframeLoad}
                 />

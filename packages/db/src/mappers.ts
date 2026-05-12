@@ -11,7 +11,6 @@ function isoFromMs(ms: number): string {
   return new Date(ms).toISOString();
 }
 
-/** Strip Dynamo-only bookkeeping fields before JSON responses */
 export function toWorkspaceDTO(r: Record<string, unknown>): WorkspaceDTO {
   return {
     id: String(r.id),
@@ -27,30 +26,27 @@ export function toWorkspaceDTO(r: Record<string, unknown>): WorkspaceDTO {
     shopifyShopDomain: r.shopifyShopDomain != null ? String(r.shopifyShopDomain) : null,
     shopifyAccessToken: r.shopifyAccessToken != null ? String(r.shopifyAccessToken) : null,
     ...(typeof r.sessionCount === "number" ? { sessionCount: r.sessionCount } : {}),
-    createdAt:
-      typeof r.createdAt === "string"
-        ? r.createdAt
-        : typeof r.createdAtMs === "number"
-          ? isoFromMs(r.createdAtMs)
-          : new Date().toISOString(),
+    createdAt: String(r.createdAt),
   };
 }
 
 export function toUserDTO(r: Record<string, unknown>): UserDTO {
+  const firebaseUid =
+    typeof r.firebaseUid === "string" && r.firebaseUid.length > 0 ? r.firebaseUid : undefined;
   return {
     id: String(r.id),
     email: String(r.email),
     password: String(r.password),
-    createdAt: typeof r.createdAt === "string" ? r.createdAt : isoFromMs(Number(r.createdAtMs)),
+    createdAt: String(r.createdAt),
+    ...(firebaseUid ? { firebaseUid } : {}),
   };
 }
 
 export function toSessionDTO(r: Record<string, unknown>): SessionDTO {
-  const startedMs = typeof r.startedAt === "number" ? r.startedAt : Number(r.startedAtMs);
   return {
     id: String(r.id),
     workspaceId: String(r.workspaceId),
-    startedAt: Number.isFinite(startedMs) ? isoFromMs(startedMs) : new Date().toISOString(),
+    startedAt: isoFromMs(Number(r.startedAt)),
     endedAt: typeof r.endedAt === "string" ? r.endedAt : null,
     durationSec: Number(r.durationSec ?? 0),
     resolved: Boolean(r.resolved),
@@ -59,7 +55,6 @@ export function toSessionDTO(r: Record<string, unknown>): SessionDTO {
 }
 
 export function toMessageDTO(r: Record<string, unknown>): MessageDTO {
-  const createdMs = typeof r.createdAt === "number" ? r.createdAt : Number(r.createdAtMs);
   return {
     id: String(r.id),
     sessionId: String(r.sessionId),
@@ -67,12 +62,11 @@ export function toMessageDTO(r: Record<string, unknown>): MessageDTO {
     role: String(r.role),
     text: String(r.text),
     audioUrl: r.audioUrl != null ? String(r.audioUrl) : null,
-    createdAt: Number.isFinite(createdMs) ? isoFromMs(createdMs) : new Date().toISOString(),
+    createdAt: isoFromMs(Number(r.createdAt)),
   };
 }
 
 export function toToolCallDTO(r: Record<string, unknown>): ToolCallDTO {
-  const createdMs = typeof r.createdAt === "number" ? r.createdAt : Number(r.createdAtMs);
   return {
     id: String(r.id),
     sessionId: String(r.sessionId),
@@ -85,19 +79,18 @@ export function toToolCallDTO(r: Record<string, unknown>): ToolCallDTO {
       r.output && typeof r.output === "object" && !Array.isArray(r.output)
         ? (r.output as Record<string, unknown>)
         : {},
-    createdAt: Number.isFinite(createdMs) ? isoFromMs(createdMs) : new Date().toISOString(),
+    createdAt: isoFromMs(Number(r.createdAt)),
   };
 }
 
 export function toFaqDTO(r: Record<string, unknown>): FaqDTO {
   const emb = Array.isArray(r.embedding) ? r.embedding.map((v) => Number(v)) : [];
-  const createdMs = typeof r.createdAt === "number" ? r.createdAt : Number(r.createdAtMs ?? 0);
   return {
     id: String(r.id),
     workspaceId: String(r.workspaceId),
     question: String(r.question),
     answer: String(r.answer),
     embedding: emb,
-    createdAt: Number.isFinite(createdMs) ? isoFromMs(createdMs) : new Date().toISOString(),
+    createdAt: isoFromMs(Number(r.createdAt)),
   };
 }

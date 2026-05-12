@@ -19,14 +19,6 @@ export function DashboardPage(): ReactElement {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [demoMode, setDemoMode] = useState(false);
-
-  useEffect(() => {
-    void api
-      .get<{ demoMode?: boolean }>("/health")
-      .then((r) => setDemoMode(Boolean(r.data.demoMode)))
-      .catch(() => setDemoMode(false));
-  }, []);
 
   useEffect(() => {
     async function load(): Promise<void> {
@@ -47,7 +39,7 @@ export function DashboardPage(): ReactElement {
   if (error) {
     return (
       <div
-        className="vw-panel max-w-xl border-vw-danger-edge bg-vw-surface p-4 text-sm text-vw-danger-soft"
+        className="vw-panel max-w-xl border-vw-danger-edge bg-vw-surface p-4 text-sm text-vw-danger"
         role="alert"
       >
         {error}
@@ -94,21 +86,6 @@ export function DashboardPage(): ReactElement {
         </p>
       </header>
 
-      {demoMode ? (
-        <section
-          className="vw-panel border-vw-accent-edge bg-vw-elevated p-4 text-sm text-vw-fg-soft sm:p-5"
-          aria-label="Widget demo hint"
-        >
-          <p className="font-medium text-vw-fg">Support flow smoke test (demo voice)</p>
-          <p className="mt-2 text-vw-muted">
-            Embed the script from <strong className="text-vw-fg-soft">Settings</strong> using your workspace{" "}
-            <code className="rounded bg-vw-bg px-1 py-0.5 font-mono text-xs">data-api-key</code>. With demo mode, the
-            backend skips live models: say a few words, wait for silence so the client sends “end”, then you should hear
-            a short tone and see a canned support-style transcript in the panel.
-          </p>
-        </section>
-      ) : null}
-
       <section
         className="vw-panel flex flex-wrap items-stretch divide-x divide-vw-border overflow-hidden p-1"
         aria-label="Support call summary"
@@ -131,30 +108,37 @@ export function DashboardPage(): ReactElement {
         <section className="vw-panel p-6 sm:p-7">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h2 className="text-sm font-semibold text-vw-fg">Voice minutes</h2>
+              <h2 className="text-sm font-semibold text-vw-headline">Voice minutes</h2>
               <p className="mt-1 max-w-md text-sm text-vw-muted">
                 Total from session length (prototype: tracked for visibility; no checkout or plan tiers wired yet).
               </p>
             </div>
-            <p className="text-right text-sm tabular-nums text-vw-fg-soft">
+            <p className="text-right text-sm tabular-nums text-vw-fg">
               <span className="font-semibold text-vw-fg">{analytics.minutesUsed}</span>
               <span className="text-vw-muted"> min</span>
             </p>
           </div>
-          <div className="mt-6 h-2.5 rounded-full bg-vw-bg" aria-hidden />
+          <div className="mt-6 h-2.5 overflow-hidden rounded-full bg-vw-progress-track" aria-hidden>
+            <div
+              className="h-full min-h-0 rounded-full bg-vw-progress-fill transition-[width] duration-vw ease-out-expo"
+              style={{
+                width: `${analytics.minutesUsed <= 0 ? 0 : Math.min(100, Math.max(5, analytics.minutesUsed * 4))}%`,
+              }}
+            />
+          </div>
         </section>
 
         <section className="vw-panel p-5 sm:p-6">
-          <h2 className="text-sm font-semibold text-vw-fg">Top questions</h2>
+          <h2 className="text-sm font-semibold text-vw-headline">Top questions</h2>
           <p className="mt-1 text-xs leading-relaxed text-vw-muted">What customers asked in recent transcripts (sample).</p>
-          <ol className="mt-4 space-y-3 text-sm text-vw-fg-soft">
+          <ol className="mt-4 space-y-3 text-sm text-vw-fg">
             {analytics.topQuestions.length === 0 ? (
-              <li className="rounded-lg bg-vw-bg px-3 py-4 text-center text-vw-muted">No transcripts yet.</li>
+              <li className="rounded-lg bg-vw-keywell px-3 py-4 text-center text-vw-muted">No transcripts yet.</li>
             ) : (
               analytics.topQuestions.map((q, i) => (
-                <li key={q.text} className="flex gap-3 border-b border-vw-border-softer pb-3 last:border-0 last:pb-0">
+                <li key={q.text} className="flex gap-3 border-b border-vw-border pb-3 last:border-0 last:pb-0">
                   <span className="w-5 shrink-0 pt-0.5 text-right font-mono text-xs text-vw-muted">{i + 1}</span>
-                  <span className="min-w-0 flex-1 leading-snug text-vw-fg-soft">{q.text}</span>
+                  <span className="min-w-0 flex-1 leading-snug text-vw-fg">{q.text}</span>
                   <span className="shrink-0 tabular-nums text-vw-muted">{q.count}×</span>
                 </li>
               ))
@@ -163,10 +147,10 @@ export function DashboardPage(): ReactElement {
         </section>
       </div>
 
-      <section className="vw-panel overflow-hidden">
+      <section className="vw-panel">
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-vw-border px-5 py-4 sm:px-6">
           <div>
-            <h2 className="text-lg font-semibold text-vw-fg">Recent sessions</h2>
+            <h2 className="text-lg font-semibold text-vw-headline">Recent sessions</h2>
             <p className="mt-0.5 text-xs text-vw-muted">Newest support conversations first, up to five.</p>
           </div>
           <Link
@@ -176,10 +160,9 @@ export function DashboardPage(): ReactElement {
             All sessions
           </Link>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[32rem] border-collapse text-left text-sm">
+        <table className="w-full min-w-0 border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-vw-border bg-vw-table-tint">
+              <tr className="border-b border-vw-border">
                 <th className="vw-table-head px-5 py-2.5 sm:px-6">Started</th>
                 <th className="vw-table-head px-5 py-2.5 sm:px-6">Messages</th>
                 <th className="vw-table-head px-5 py-2.5 sm:px-6">Resolved</th>
@@ -188,16 +171,18 @@ export function DashboardPage(): ReactElement {
             </thead>
             <tbody>
               {sessions.map((s) => (
-                <tr key={s.id} className="border-b border-vw-border-faint transition-colors duration-vw ease-out-expo hover:bg-vw-elevated-hover">
-                  <td className="px-5 py-3 tabular-nums text-vw-fg-soft sm:px-6">
+                <tr key={s.id} className="border-b border-vw-border transition-colors duration-vw ease-out-expo hover:bg-vw-elevated-hover">
+                  <td className="max-w-[10rem] break-words px-5 py-3 tabular-nums text-vw-fg sm:max-w-none sm:px-6">
                     {new Date(s.startedAt).toLocaleString()}
                   </td>
-                  <td className="px-5 py-3 tabular-nums text-vw-fg-soft sm:px-6">{s.messageCount}</td>
+                  <td className="px-5 py-3 tabular-nums text-vw-fg sm:px-6">{s.messageCount}</td>
                   <td className="px-5 py-3 sm:px-6">
                     <span
-                      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${
-                        s.resolved ? "bg-vw-success-soft text-vw-success-fg" : "bg-vw-elevated text-vw-muted"
-                      }`}
+                      className={
+                        s.resolved
+                          ? "inline-flex rounded-md bg-vw-success-soft px-2 py-0.5 text-xs font-medium text-vw-success-fg"
+                          : "vw-badge-open py-0.5"
+                      }
                     >
                       {s.resolved ? "Resolved" : "Open"}
                     </span>
@@ -214,7 +199,6 @@ export function DashboardPage(): ReactElement {
               ))}
             </tbody>
           </table>
-        </div>
       </section>
     </div>
   );

@@ -5,6 +5,6 @@ packages/*/dist/
 .env
 .env.*
 !.env.example
-scripts/demo.local.env
 *.log
 .DS_Store
+seed.ts

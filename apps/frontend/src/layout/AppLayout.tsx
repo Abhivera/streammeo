@@ -1,6 +1,5 @@
 import type { ReactElement } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { DemoModeBanner } from "../components/DemoModeBanner";
 import { useAuthStore } from "../store/auth";
 
 function navClass(isActive: boolean): string {
@@ -11,11 +10,11 @@ export function AppLayout(): ReactElement {
   const setToken = useAuthStore((s) => s.setToken);
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-vw-border bg-vw-surface p-4 shadow-vw md:flex">
+    <div className="flex min-h-screen bg-vw-bg">
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-vw-border bg-vw-sidebar p-4 shadow-vw md:flex">
         <div className="mb-8 px-1">
           <div className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-vw-muted">Streammeo</div>
-          <div className="mt-1 text-lg font-semibold tracking-tight text-vw-fg">Console</div>
+          <div className="mt-1 vw-brand-wordmark">Console</div>
           <p className="mt-2 text-xs leading-snug text-vw-muted">Voice customer support</p>
         </div>
         <nav className="flex flex-1 flex-col gap-0.5" aria-label="Primary">
@@ -44,12 +43,12 @@ export function AppLayout(): ReactElement {
         </button>
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-vw-bg">
         <header className="flex items-center justify-between border-b border-vw-border bg-vw-surface px-4 py-3 md:hidden">
           <div>
             <div className="text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-vw-muted">Streammeo</div>
             <div className="flex flex-col">
-              <span className="text-sm font-semibold text-vw-fg">Console</span>
+              <span className="text-sm font-semibold tracking-tight text-vw-headline">Console</span>
               <span className="text-[0.65rem] text-vw-muted">Voice support</span>
             </div>
           </div>
@@ -61,8 +60,7 @@ export function AppLayout(): ReactElement {
             Log out
           </button>
         </header>
-        <main className="flex-1 overflow-auto px-4 py-8 sm:px-6 lg:px-10">
-          <DemoModeBanner />
+        <main className="flex-1 px-4 py-8 sm:px-6 lg:px-10">
           <Outlet />
         </main>
       </div>

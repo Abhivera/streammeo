@@ -1,12 +1,14 @@
 services:
-  redis:
-    image: redis:7
+  mongo:
+    image: mongo:7
     ports:
-      - "6379:6379"
+      - "27017:27017"
+    volumes:
+      - streammeo-mongo:/data/db
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 5
 
   backend:
@@ -17,22 +19,19 @@ services:
     command: ["npm", "run", "-w", "@streammeo/backend", "start"]
     ports:
       - "3001:3001"
-    volumes:
-      - streammeo-sqlite:/repo/data
     environment:
-      REDIS_URL: redis://redis:6379
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/streammeo}
       PORT: "3001"
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       WIDGET_ALLOWED_ORIGINS: ${WIDGET_ALLOWED_ORIGINS:-*}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-docker-change-me-in-docker}
-      SQLITE_PATH: ${SQLITE_PATH:-/repo/data/streammeo.db}
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY}
       DEEPGRAM_STT_MODEL: ${DEEPGRAM_STT_MODEL:-nova-2}
       DEEPGRAM_TTS_MODEL: ${DEEPGRAM_TTS_MODEL:-aura-2-thalia-en}
       GROQ_API_KEY: ${GROQ_API_KEY}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
     depends_on:
-      redis:
+      mongo:
         condition: service_healthy
 
   frontend:
@@ -45,4 +44,4 @@ services:
       - backend
 
 volumes:
-  streammeo-sqlite:
+  streammeo-mongo:

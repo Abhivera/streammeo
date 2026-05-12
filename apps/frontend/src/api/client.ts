@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 import { useAuthStore } from "../store/auth";
 
 const baseURL = import.meta.env.VITE_API_URL?.trim().length
@@ -17,3 +17,11 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+export function getApiErrorMessage(err: unknown, fallback: string): string {
+  if (!isAxiosError(err) || err.response?.data == null) return fallback;
+  const body = err.response.data as Record<string, unknown>;
+  const e = body.error;
+  if (typeof e === "string") return e;
+  return fallback;
+}

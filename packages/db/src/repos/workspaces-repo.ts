@@ -1,4 +1,4 @@
-import type { Database } from "better-sqlite3";
+import type { Collection, Db } from "mongodb";
 import type { WorkspaceDTO } from "../entities";
 import { toWorkspaceDTO } from "../mappers";
 
@@ -17,106 +17,111 @@ export type WorkspacePatch = Partial<
   >
 >;
 
-const workspaceSelect = `
-  SELECT
-    id,
-    name,
-    api_key AS apiKey,
-    language,
-    agent_name AS agentName,
-    system_prompt AS systemPrompt,
-    plan,
-    minutes_used AS minutesUsed,
-    minutes_limit AS minutesLimit,
-    owner_id AS ownerId,
-    shopify_shop_domain AS shopifyShopDomain,
-    shopify_access_token AS shopifyAccessToken,
-    session_count AS sessionCount,
-    created_at AS createdAt
-  FROM workspaces
-`;
+type WorkspaceDoc = Readonly<{
+  _id: string;
+  name: string;
+  apiKey: string;
+  language: string;
+  agentName: string;
+  systemPrompt: string;
+  plan: string;
+  minutesUsed: number;
+  minutesLimit: number;
+  ownerId: string;
+  shopifyShopDomain: string | null;
+  shopifyAccessToken: string | null;
+  sessionCount: number;
+  createdAt: string;
+}>;
+
+function docToRow(doc: WorkspaceDoc): Record<string, unknown> {
+  return {
+    id: doc._id,
+    name: doc.name,
+    apiKey: doc.apiKey,
+    language: doc.language,
+    agentName: doc.agentName,
+    systemPrompt: doc.systemPrompt,
+    plan: doc.plan,
+    minutesUsed: doc.minutesUsed,
+    minutesLimit: doc.minutesLimit,
+    ownerId: doc.ownerId,
+    shopifyShopDomain: doc.shopifyShopDomain,
+    shopifyAccessToken: doc.shopifyAccessToken,
+    sessionCount: doc.sessionCount,
+    createdAt: doc.createdAt,
+  };
+}
 
 export class WorkspacesRepo {
-  constructor(private readonly db: Database) {}
+  private readonly coll: Collection<WorkspaceDoc>;
+
+  constructor(db: Db) {
+    this.coll = db.collection<WorkspaceDoc>("workspaces");
+  }
 
   async findById(id: string): Promise<WorkspaceDTO | null> {
-    const row = this.db.prepare(`${workspaceSelect} WHERE id = ?`).get(id) as
-      | Record<string, unknown>
-      | undefined;
-    return row ? toWorkspaceDTO(row) : null;
+    const doc = await this.coll.findOne({ _id: id });
+    return doc ? toWorkspaceDTO(docToRow(doc)) : null;
   }
 
   async findByApiKey(apiKey: string): Promise<WorkspaceDTO | null> {
-    const row = this.db.prepare(`${workspaceSelect} WHERE api_key = ?`).get(apiKey) as
-      | Record<string, unknown>
-      | undefined;
-    return row ? toWorkspaceDTO(row) : null;
+    const doc = await this.coll.findOne({ apiKey });
+    return doc ? toWorkspaceDTO(docToRow(doc)) : null;
   }
 
   async listByOwner(ownerId: string): Promise<WorkspaceDTO[]> {
-    const rows = this.db
-      .prepare(`${workspaceSelect} WHERE owner_id = ? ORDER BY created_at ASC`)
-      .all(ownerId) as Record<string, unknown>[];
-    return rows.map((r) => toWorkspaceDTO(r));
+    const cursor = this.coll.find({ ownerId }).sort({ createdAt: 1 });
+    const docs = await cursor.toArray();
+    return docs.map((d) => toWorkspaceDTO(docToRow(d)));
   }
 
-  async put(ws: Readonly<Omit<WorkspaceDTO, "createdAt">> & { createdAt: string }): Promise<void> {
-    this.db
-      .prepare(
-        `
-      INSERT INTO workspaces (
-        id, name, api_key, language, agent_name, system_prompt, plan,
-        minutes_used, minutes_limit, owner_id, shopify_shop_domain, shopify_access_token,
-        session_count, created_at
-      ) VALUES (
-        @id, @name, @apiKey, @language, @agentName, @systemPrompt, @plan,
-        @minutesUsed, @minutesLimit, @ownerId, @shopifyShopDomain, @shopifyAccessToken,
-        0, @createdAt
-      )
-    `,
-      )
-      .run({
-        id: ws.id,
-        name: ws.name,
-        apiKey: ws.apiKey,
-        language: ws.language,
-        agentName: ws.agentName,
-        systemPrompt: ws.systemPrompt,
-        plan: ws.plan,
-        minutesUsed: ws.minutesUsed,
-        minutesLimit: ws.minutesLimit,
-        ownerId: ws.ownerId,
-        shopifyShopDomain: ws.shopifyShopDomain,
-        shopifyAccessToken: ws.shopifyAccessToken,
-        createdAt: ws.createdAt,
-      });
+  async put(
+    ws: Readonly<Omit<WorkspaceDTO, "createdAt">> & { createdAt: string },
+  ): Promise<void> {
+    await this.coll.insertOne({
+      _id: ws.id,
+      name: ws.name,
+      apiKey: ws.apiKey,
+      language: ws.language,
+      agentName: ws.agentName,
+      systemPrompt: ws.systemPrompt,
+      plan: ws.plan,
+      minutesUsed: ws.minutesUsed,
+      minutesLimit: ws.minutesLimit,
+      ownerId: ws.ownerId,
+      shopifyShopDomain: ws.shopifyShopDomain,
+      shopifyAccessToken: ws.shopifyAccessToken,
+      sessionCount: 0,
+      createdAt: ws.createdAt,
+    });
   }
 
   async update(id: string, patch: WorkspacePatch): Promise<WorkspaceDTO | null> {
-    const colMap: Record<keyof WorkspacePatch, string> = {
-      name: "name",
-      language: "language",
-      agentName: "agent_name",
-      systemPrompt: "system_prompt",
-      plan: "plan",
-      minutesLimit: "minutes_limit",
-      minutesUsed: "minutes_used",
-      shopifyShopDomain: "shopify_shop_domain",
-      shopifyAccessToken: "shopify_access_token",
-    };
-
     const keys = Object.keys(patch).filter(
       (k) => patch[k as keyof WorkspacePatch] !== undefined,
     ) as (keyof WorkspacePatch)[];
     if (keys.length === 0) return this.findById(id);
 
-    const sets = keys.map((k) => `${colMap[k]} = @${String(k)}`).join(", ");
-    const params: Record<string, unknown> = { id };
+    const keyMap: Record<keyof WorkspacePatch, keyof WorkspaceDoc> = {
+      name: "name",
+      language: "language",
+      agentName: "agentName",
+      systemPrompt: "systemPrompt",
+      plan: "plan",
+      minutesLimit: "minutesLimit",
+      minutesUsed: "minutesUsed",
+      shopifyShopDomain: "shopifyShopDomain",
+      shopifyAccessToken: "shopifyAccessToken",
+    };
+
+    const $set: Record<string, unknown> = {};
     for (const k of keys) {
-      params[String(k)] = patch[k];
+      const field = keyMap[k];
+      $set[String(field)] = patch[k];
     }
 
-    this.db.prepare(`UPDATE workspaces SET ${sets} WHERE id = @id`).run(params);
+    await this.coll.updateOne({ _id: id }, { $set });
     return this.findById(id);
   }
 }

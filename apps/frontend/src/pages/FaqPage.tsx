@@ -43,7 +43,7 @@ export function FaqPage(): ReactElement {
         <h1 className="vw-page-title">FAQ library</h1>
         <p className="vw-page-lede">
           Curated answers for customer support. Entries power the{" "}
-          <code className="rounded bg-vw-bg px-1.5 py-0.5 font-mono text-xs text-vw-fg-soft">search_faq</code> tool
+          <code className="rounded bg-vw-keywell px-1.5 py-0.5 font-mono text-xs text-vw-fg">search_faq</code> tool
           during live voice calls so replies stay on-policy.
         </p>
       </header>
@@ -75,7 +75,7 @@ export function FaqPage(): ReactElement {
       </form>
 
       <section>
-        <h2 className="text-sm font-semibold text-vw-fg">Stored FAQs</h2>
+        <h2 className="text-sm font-semibold text-vw-headline">Stored FAQs</h2>
         <ul className="mt-4 space-y-3">
           {rows.length === 0 ? (
             <li className="vw-panel px-4 py-8 text-center text-sm text-vw-muted">No entries yet. Add a pair above.</li>
@@ -83,16 +83,16 @@ export function FaqPage(): ReactElement {
             rows.map((f) => (
               <li key={f.id} className="vw-panel flex flex-col gap-2 p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="font-medium leading-snug text-vw-fg">{f.question}</p>
+                  <p className="font-medium leading-snug text-vw-headline">{f.question}</p>
                   <button
                     type="button"
                     onClick={() => void remove(f.id)}
-                    className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-vw-danger-soft transition-colors duration-vw ease-out-expo hover:bg-vw-bg hover:text-vw-danger"
+                    className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-vw-danger transition-colors duration-vw ease-out-expo hover:bg-vw-danger-soft hover:text-vw-danger"
                   >
                     Delete
                   </button>
                 </div>
-                <p className="text-sm leading-relaxed text-vw-muted">{f.answer}</p>
+                <p className="text-sm leading-relaxed text-vw-fg">{f.answer}</p>
               </li>
             ))
           )}

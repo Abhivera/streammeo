@@ -10,12 +10,10 @@
   ],
   "scripts": {
     "dev:backend": "npm run -w @streammeo/backend dev",
-    "dev:backend:demo": "DEMO_MODE=true npm run -w @streammeo/backend dev",
     "dev:frontend": "npm run -w @streammeo/frontend dev",
     "dev:widget": "npm run -w @streammeo/widget dev",
     "build": "npm run -ws build",
     "db:seed": "npm run -w @streammeo/db seed",
-    "db:seed:demo": "bash scripts/with-demo-env.sh npm run db:seed",
     "lint": "npm run -w @streammeo/backend lint && npm run -w @streammeo/frontend lint"
   }
 }

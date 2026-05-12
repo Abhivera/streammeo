@@ -6,10 +6,7 @@ import type { VoiceSession } from "./session";
 import { runAssistantStreamingTurn } from "./llm";
 import { getStore } from "../db";
 import { createLogger } from "../logger";
-import { workspaceLangToDeepgramStt } from "../lang-map";
-import { usageRedisKey } from "../redis";
 import { isUsageCapEnforced } from "@streammeo/shared";
-import { runDemoVoicePipeline } from "./demo-voice";
 import type { PipelineDeps } from "./deps";
 
 export type { PipelineDeps } from "./deps";
@@ -31,8 +28,6 @@ export async function runPipeline(
   workspace: WorkspaceDTO,
 ): Promise<void> {
   const log = createLogger(deps.config, "pipeline");
-  const sttLanguage = workspaceLangToDeepgramStt(workspace.language);
-
   const wallStart = Date.now();
 
   try {
@@ -60,18 +55,11 @@ export async function runPipeline(
       return;
     }
 
-    if (deps.config.demoMode) {
-      await runDemoVoicePipeline(deps, session, workspace, wallStart, signal);
-      session.abortController = null;
-      session.setState("idle");
-      return;
-    }
-
     log.info({ sessionId: session.dbSessionId }, "STT start");
     const userText = await transcribe(
       combined,
       deps.config.DEEPGRAM_API_KEY,
-      sttLanguage,
+      "en",
       deps.config.DEEPGRAM_STT_MODEL,
     );
     log.info({ sessionId: session.dbSessionId, userText }, "STT done");
@@ -231,10 +219,6 @@ export async function runPipeline(
       durationSec,
       minuteDelta,
     });
-
-    await deps.redis
-      .incrby(usageRedisKey(workspace.id), durationSec)
-      .catch((err: unknown) => log.error({ err }, "redis usage increment failed"));
 
     session.socket.emit("usage", {
       minutesUsed: fresh?.minutesUsed ?? workspace.minutesUsed + minuteDelta,

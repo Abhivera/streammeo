@@ -20,7 +20,7 @@ export interface SessionRow {
 
 export interface SessionDetail {
   id: string;
-  workspaceId?: string;
+  workspaceId: string;
   startedAt: string;
   endedAt: string | null;
   durationSec: number;

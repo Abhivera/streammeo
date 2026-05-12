@@ -1,6 +1,7 @@
 import { io, type Socket } from "socket.io-client";
 
 type UIS = "idle" | "listening" | "thinking" | "speaking";
+type DisplayMode = "corner" | "center";
 
 type SessionStateEvt = { state: string };
 
@@ -22,7 +23,7 @@ if (!SCRIPT_EL) {
 
 function bootstrap(script: HTMLScriptElement): void {
   const apiKey = script.dataset.apiKey;
-  const lang = script.dataset.lang ?? "en";
+  const displayMode: DisplayMode = script.dataset.displayMode === "center" ? "center" : "corner";
   const backend =
     script.dataset.backendUrl ?? `${window.location.protocol}//${window.location.hostname}:3001`;
 
@@ -42,7 +43,7 @@ function bootstrap(script: HTMLScriptElement): void {
   shadow.appendChild(style);
 
   const row = document.createElement("div");
-  row.className = "dock";
+  row.className = displayMode === "center" ? "dock dock-center" : "dock";
 
   const panel = document.createElement("aside");
   panel.className = "panel";
@@ -53,9 +54,11 @@ function bootstrap(script: HTMLScriptElement): void {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "mic idle";
+  btn.dataset.displayMode = displayMode;
   btn.setAttribute("aria-label", "Voice customer support");
-  btn.innerHTML =
-    `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 14a3 3 0 003-3V7a3 3 0 10-6 0v4a3 3 0 003 3z"/><path d="M19 11a7 7 0 11-14 0M12 18v4M9 21h6"/></svg>`;
+  btn.innerHTML = micSvg(displayMode);
+
+  applyCriticalStyles(row, panel, messages, btn, displayMode);
 
   row.appendChild(panel);
   row.appendChild(btn);
@@ -64,7 +67,6 @@ function bootstrap(script: HTMLScriptElement): void {
   const socket: Socket = io(backend, {
     transports: ["websocket", "polling"],
     path: "/socket.io/",
-    query: lang ? { lang } : undefined,
     autoConnect: true,
     reconnection: true,
     reconnectionAttempts: 12,
@@ -286,14 +288,23 @@ function bootstrap(script: HTMLScriptElement): void {
 function setUi(btn: HTMLButtonElement, panel: HTMLElement, s: UIS): void {
   btn.classList.remove("idle", "listening", "thinking", "speaking");
   btn.classList.add(s);
+  applyButtonStateStyles(btn, s);
+  const displayMode = buttonDisplayMode(btn);
   if (s === "thinking") {
     btn.innerHTML = `<span class="spinner" aria-hidden="true"></span>`;
+    const spinner = btn.querySelector<HTMLElement>(".spinner");
+    if (spinner) {
+      const spinnerSize = displayMode === "center" ? "34px" : "22px";
+      spinner.style.cssText =
+        `width:${spinnerSize};height:${spinnerSize};border-radius:50%;border:3px solid currentColor;border-top-color:transparent;animation:sm-spin .8s linear infinite;`;
+    }
   } else {
-    btn.innerHTML =
-      `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 14a3 3 0 003-3V7a3 3 0 10-6 0v4a3 3 0 003 3z"/><path d="M19 11a7 7 0 11-14 0M12 18v4M9 21h6"/></svg>`;
+    btn.innerHTML = micSvg(displayMode);
   }
 
-  panel.classList.toggle("open", ["listening", "thinking", "speaking"].includes(s));
+  const panelOpen = ["listening", "thinking", "speaking"].includes(s);
+  panel.classList.toggle("open", panelOpen);
+  panel.style.display = panelOpen ? "block" : "none";
 
   btn.title =
     s === "idle"
@@ -310,23 +321,76 @@ function pushMsg(msgs: HTMLElement, role: string, text: string): void {
   bubble.className = `bubble ${role}`;
   bubble.textContent = text;
   msgs.appendChild(bubble);
-  msgs.scrollTop = msgs.scrollHeight;
 }
 
 function toast(row: HTMLElement, text: string, ttl = 4500): void {
   const t = document.createElement("div");
   t.className = "toast";
   t.textContent = text;
+  t.style.cssText =
+    "width:min(320px,calc(100vw - 32px));box-sizing:border-box;background:#111827;color:#fff;padding:8px 12px;font:12px/1.35 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;border-radius:10px;box-shadow:0 10px 30px rgb(15 23 42 / .15);";
   row.insertBefore(t, row.firstChild);
   window.setTimeout(() => t.remove(), ttl);
+}
+
+function applyCriticalStyles(
+  row: HTMLElement,
+  panel: HTMLElement,
+  messages: HTMLElement,
+  btn: HTMLButtonElement,
+  displayMode: DisplayMode,
+): void {
+  row.style.cssText =
+    displayMode === "center"
+      ? "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483640;display:flex;flex-direction:column;align-items:center;gap:14px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;"
+      : "position:fixed;right:22px;bottom:22px;z-index:2147483640;display:flex;flex-direction:column;align-items:flex-end;gap:8px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;";
+  panel.style.cssText =
+    "width:min(320px,calc(100vw - 44px));display:none;background:#fff;color:#111;border-radius:16px;border:1px solid #e5e7eb;box-shadow:0 22px 50px rgb(15 23 42 / .18);overflow:visible;";
+  messages.style.cssText =
+    "box-sizing:border-box;padding:14px;display:flex;flex-direction:column;gap:10px;overflow:visible;";
+  btn.style.cssText = baseButtonStyle("idle", displayMode);
+}
+
+function applyButtonStateStyles(btn: HTMLButtonElement, s: UIS): void {
+  btn.style.cssText = baseButtonStyle(s, buttonDisplayMode(btn));
+}
+
+function buttonDisplayMode(btn: HTMLButtonElement): DisplayMode {
+  return btn.dataset.displayMode === "center" ? "center" : "corner";
+}
+
+function micSvg(displayMode: DisplayMode): string {
+  const size = displayMode === "center" ? 42 : 26;
+  const stroke = displayMode === "center" ? 1.8 : 2;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${stroke}"><path d="M12 14a3 3 0 003-3V7a3 3 0 10-6 0v4a3 3 0 003 3z"/><path d="M19 11a7 7 0 11-14 0M12 18v4M9 21h6"/></svg>`;
+}
+
+function baseButtonStyle(s: UIS, displayMode: DisplayMode): string {
+  const tone =
+    s === "listening"
+      ? "background:#fecaca;color:#7f1d1d;animation:sm-pulse 1.1s ease-in-out infinite;"
+      : s === "thinking"
+      ? "background:#bfdbfe;color:#1e3a8a;"
+      : s === "speaking"
+      ? "background:#bbf7d0;color:#14532d;animation:sm-pulse 1.1s ease-in-out infinite;"
+      : "background:#e5e7eb;color:#111827;";
+
+  const size = displayMode === "center" ? "96px" : "56px";
+  const shadow =
+    displayMode === "center"
+      ? "box-shadow:0 22px 60px rgb(15 23 42 / .2),0 0 0 10px rgb(255 255 255 / .45);"
+      : "box-shadow:0 10px 30px rgb(15 23 42 / .15);";
+
+  return `${tone}width:${size};height:${size};min-width:${size};min-height:${size};box-sizing:border-box;border-radius:999px;border:0;padding:0;margin:0;cursor:pointer;display:grid;place-items:center;${shadow}transition:transform .16s ease;appearance:none;-webkit-appearance:none;`;
 }
 
 const css = `
 :host{font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;color:#0f172a;}
 .dock{position:fixed;right:22px;bottom:22px;z-index:2147483640;display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
-.panel{width:320px;max-height:420px;display:none;background:#fff;color:#111;border-radius:16px;border:1px solid #e5e7eb;box-shadow:0 22px 50px rgb(15 23 42 / .18);}
+.dock-center{left:50%;top:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);align-items:center;gap:14px;}
+.panel{width:320px;display:none;background:#fff;color:#111;border-radius:16px;border:1px solid #e5e7eb;box-shadow:0 22px 50px rgb(15 23 42 / .18);}
 .panel.open{display:block;}
-.msgs{padding:14px;display:flex;flex-direction:column;gap:10px;max-height:360px;overflow:auto;}
+.msgs{padding:14px;display:flex;flex-direction:column;gap:10px;}
 .bubble{font-size:14px;line-height:1.45;padding:10px;border-radius:12px;white-space:pre-wrap;}
 .bubble.user{align-self:flex-end;background:#eef2ff;}
 .bubble.assistant{align-self:flex-start;background:#f4f4f5;}

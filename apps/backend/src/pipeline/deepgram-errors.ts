@@ -29,7 +29,7 @@ export function deepgramUserFacingMessage(
 
   if (status === 402 || status === 429) {
     if (/balance|credit|quota|limit|payment/i.test(msg)) {
-      return `${label} is unavailable: Deepgram reported a quota or billing issue. Check your Deepgram project, or set DEMO_MODE=true for local testing without Deepgram.`;
+      return `${label} is unavailable: Deepgram reported a quota or billing issue. Check your Deepgram project and billing.`;
     }
     return `${label} hit a rate or quota limit (HTTP ${status}). Retry shortly or check your Deepgram plan.`;
   }

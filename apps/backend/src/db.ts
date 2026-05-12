@@ -3,9 +3,11 @@ import type { AppConfig } from "./config";
 
 let store: StreammeoStore | undefined;
 
-export function initStore(config: AppConfig): void {
-  store = createStreammeoStore({
-    databasePath: config.SQLITE_PATH,
+/** Connects to MongoDB (`MONGODB_URI` / optional `MONGODB_DB_NAME`) and builds the shared `StreammeoStore`. */
+export async function initStore(config: AppConfig): Promise<void> {
+  store = await createStreammeoStore({
+    mongoUri: config.MONGODB_URI,
+    ...(config.MONGODB_DB_NAME ? { dbName: config.MONGODB_DB_NAME } : {}),
   });
 }
 

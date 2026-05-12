@@ -38,27 +38,29 @@ export function SessionDetailPage(): ReactElement {
             ← All sessions
           </Link>
           <h1 className="mt-2 vw-page-title">Support session</h1>
-          <p className="mt-1 text-sm text-vw-fg-soft">Full transcript and tools for QA and follow-up.</p>
+          <p className="mt-1 text-sm text-vw-fg">Full transcript and tools for QA and follow-up.</p>
           <p className="mt-1 text-sm tabular-nums text-vw-muted">{new Date(session.startedAt).toLocaleString()}</p>
         </div>
         <span
-          className={`rounded-md px-3 py-1 text-xs font-medium ${
-            session.resolved ? "bg-vw-success-soft text-vw-success-fg" : "bg-vw-elevated text-vw-muted"
-          }`}
+          className={
+            session.resolved
+              ? "rounded-md bg-vw-success-soft px-3 py-1 text-xs font-medium text-vw-success-fg"
+              : "inline-flex rounded-md bg-vw-badge-open-bg px-3 py-1 text-xs font-medium text-vw-badge-open-text"
+          }
         >
           {session.resolved ? "Resolved" : "Open"}
         </span>
       </div>
 
       <section className="vw-panel space-y-4 p-5 sm:p-6">
-        <h2 className="text-sm font-semibold text-vw-fg">Conversation</h2>
+        <h2 className="text-sm font-semibold text-vw-headline">Conversation</h2>
         <div className="space-y-3">
           {session.transcript.map((m) => (
             <article
               key={m.id}
               className={`rounded-lg border px-3.5 py-3 text-sm leading-relaxed ${
                 m.role === "assistant"
-                  ? "border-vw-border bg-vw-bg text-vw-fg-soft"
+                  ? "border-vw-border bg-vw-keywell text-vw-fg"
                   : "border-vw-accent-edge bg-vw-elevated text-vw-fg"
               }`}
             >
@@ -70,15 +72,15 @@ export function SessionDetailPage(): ReactElement {
       </section>
 
       <section className="vw-panel space-y-3 p-5 sm:p-6">
-        <h2 className="text-sm font-semibold text-vw-fg">Tool calls</h2>
+        <h2 className="text-sm font-semibold text-vw-headline">Tool calls</h2>
         {session.toolCalls.length === 0 ? (
           <p className="text-sm text-vw-muted">No tools used in this session.</p>
         ) : (
           <ul className="space-y-2">
             {session.toolCalls.map((tc) => (
-              <li key={tc.id} className="rounded-lg border border-vw-border bg-vw-bg p-3 font-mono text-xs text-vw-fg-soft">
+              <li key={tc.id} className="rounded-lg border border-vw-border bg-vw-keywell p-3 font-mono text-xs text-vw-fg">
                 <span className="font-sans text-sm font-semibold text-vw-accent">{tc.toolName}</span>
-                <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-vw-muted">
+                <pre className="mt-2 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-vw-muted">
                   {JSON.stringify(tc.input, null, 2)}
                   {"\n→\n"}
                   {JSON.stringify(tc.output, null, 2)}

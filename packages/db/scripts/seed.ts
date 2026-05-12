@@ -1,7 +1,7 @@
 /**
- * Clears the SQLite file and inserts fixed test accounts + sample workspace data.
- * Optional env overrides: copy `scripts/demo-env.example` → `scripts/demo.local.env`, then run
- * `./scripts/with-demo-env.sh npm run db:seed` (or `npm run db:seed:demo` after copying).
+ * Clears MongoDB app collections and inserts fixed test accounts + sample workspace data.
+ * Env: `MONGODB_URI` (default `mongodb://127.0.0.1:27017/streammeo`), optional `MONGODB_DB_NAME`.
+ * Optional: `SEED_TEST_PASSWORD` overrides the bcrypt source for seeded users (default is a local-only test password).
  */
 
 import { randomUUID } from "node:crypto";
@@ -13,14 +13,15 @@ const TEST_ACCOUNTS = [
   { email: "abhijitakadeveloper@gmail.com", workspaceName: "Abhijit AKA Developer (test)" },
 ] as const;
 
-const password = process.env.DEMO_SEED_PASSWORD ?? "abhivera@A1";
+const password = process.env.SEED_TEST_PASSWORD ?? "abhivera@A1";
 
 async function main(): Promise<void> {
-  const databasePath = process.env.SQLITE_PATH ?? "./data/streammeo.db";
-  const store = createStreammeoStore({ databasePath });
+  const mongoUri = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017/streammeo";
+  const dbName = process.env.MONGODB_DB_NAME?.trim() || undefined;
+  const store = await createStreammeoStore({ mongoUri, ...(dbName ? { dbName } : {}) });
 
-  store.clearAllData();
-  console.log(`Cleared all rows in ${databasePath}`);
+  await store.clearAllData();
+  console.log(`Cleared all collections in MongoDB (${mongoUri})`);
 
   const passwordHash = await bcrypt.hash(password, 12);
   const iso = new Date().toISOString();
@@ -56,7 +57,7 @@ async function main(): Promise<void> {
       createdAt: iso,
     });
 
-    await seedDemoWorkspaceContent(store, workspaceId);
+    await seedSampleWorkspaceContent(store, workspaceId);
     created.push({ email, workspaceId, apiKey });
   }
 
@@ -64,23 +65,23 @@ async function main(): Promise<void> {
     JSON.stringify(
       {
         ok: true,
-        databasePath,
-        passwordSource: process.env.DEMO_SEED_PASSWORD ? "DEMO_SEED_PASSWORD env" : "default test password",
+        mongoUri,
+        passwordSource: process.env.SEED_TEST_PASSWORD ? "SEED_TEST_PASSWORD env" : "default test password",
         accounts: created.map((c) => ({
           email: c.email,
           workspaceId: c.workspaceId,
           apiKey: c.apiKey,
         })),
-        hint: "Sign in with either email and the seeded password. DEMO_MODE + POST /auth/demo-login uses DEMO_SEED_EMAIL (default: first account).",
+        hint: "Sign in at /login with a seeded email and the same password used for bcrypt (default local password, or SEED_TEST_PASSWORD if you set it).",
       },
       null,
       2,
     ),
   );
-  store.close();
+  await store.close();
 }
 
-async function seedDemoWorkspaceContent(store: StreammeoStore, workspaceId: string): Promise<void> {
+async function seedSampleWorkspaceContent(store: StreammeoStore, workspaceId: string): Promise<void> {
   const t = Date.now() - 86_400_000;
   await store.faqs.put({
     workspaceId,
