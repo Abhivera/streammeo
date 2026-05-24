@@ -14,7 +14,7 @@ export function AppLayout(): ReactElement {
     <div className="flex min-h-screen bg-vw-bg">
       <aside className="hidden w-56 shrink-0 flex-col border-r border-vw-border bg-vw-sidebar p-4 shadow-vw md:flex">
         <div className="mb-8 px-1">
-          <BrandLogo variant="full" className="max-w-full" />
+          <BrandLogo variant="full" className="h-[11rem] w-auto max-w-full sm:h-48" />
           <div className="mt-3 text-lg font-semibold tracking-tight text-vw-headline">Console</div>
           <p className="mt-2 text-xs leading-snug text-vw-muted">Voice customer support</p>
         </div>

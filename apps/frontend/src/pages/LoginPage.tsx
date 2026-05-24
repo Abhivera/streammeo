@@ -69,7 +69,7 @@ export function LoginPage(): ReactElement {
     <div className="vw-auth-shell flex flex-col justify-center px-4 py-12">
       <div className="mx-auto w-full max-w-[26rem]">
         <div className="mb-8 text-center">
-          <BrandLogo variant="full" className="mx-auto max-h-11 sm:max-h-12" />
+          <BrandLogo variant="full" className="mx-auto h-56 w-auto sm:h-64" />
           <h1 className="mt-6 text-2xl font-semibold tracking-tight text-vw-headline">Sign in</h1>
           <p className="mt-2 text-sm text-vw-muted">
             New merchant?{" "}

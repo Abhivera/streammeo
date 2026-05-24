@@ -141,10 +141,13 @@ export function LandingPage(): ReactElement {
         }}
       />
 
-      <header className="relative z-10 border-b border-vw-border-softer bg-vw-bg">
+      <header className="relative z-10 overflow-visible border-b border-vw-border-softer bg-vw-bg">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 py-4 sm:px-6 lg:px-8">
-          <Link to="/" className="flex items-center gap-2 outline-none ring-vw-accent ring-offset-2 ring-offset-vw-bg focus-visible:rounded-md focus-visible:ring-2">
-            <BrandLogo variant="full" className="max-h-8 sm:max-h-9" />
+          <Link
+            to="/"
+            className="flex shrink-0 items-center outline-none ring-vw-accent ring-offset-2 ring-offset-vw-bg focus-visible:rounded-md focus-visible:ring-2"
+          >
+            <BrandLogo variant="full" fit="chrome" />
           </Link>
           <nav className="flex items-center gap-2 sm:gap-3" aria-label="Marketing">
             <Link
@@ -365,11 +368,15 @@ export function LandingPage(): ReactElement {
         </section>
       </main>
 
-      <footer className="relative z-10 border-t border-vw-border bg-vw-surface px-4 py-10 sm:px-6 lg:px-8">
+      <footer className="relative z-10 overflow-visible border-t border-vw-border bg-vw-surface px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-            <BrandLogo variant="full" className="max-h-7 opacity-90 sm:max-h-8" />
-            <p className="text-sm text-vw-muted">AI voice customer support for the web</p>
+          <div className="flex flex-col gap-4 sm:max-w-md">
+            <div className="flex min-h-24 items-center sm:min-h-28">
+              <BrandLogo variant="full" fit="chrome" chromeSize="footer" className="opacity-90" />
+            </div>
+            <p className="text-sm leading-relaxed text-vw-muted">
+              AI voice customer support for the web
+            </p>
           </div>
           <div className="flex gap-6 text-sm font-medium text-vw-fg-soft">
             <Link to="/login" className="transition-colors hover:text-vw-fg">
