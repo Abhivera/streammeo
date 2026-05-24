@@ -1,6 +1,7 @@
 import type { FormEvent, ReactElement } from "react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { BrandLogo } from "../components/BrandLogo";
 import { api, getApiErrorMessage } from "../api/client";
 import { signInWithGoogleAndCreateSession } from "../auth/firebase-google";
 import { isFirebaseClientConfigured } from "../firebase/client";
@@ -68,8 +69,8 @@ export function LoginPage(): ReactElement {
     <div className="vw-auth-shell flex flex-col justify-center px-4 py-12">
       <div className="mx-auto w-full max-w-[26rem]">
         <div className="mb-8 text-center">
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-vw-muted">Streammeo</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-vw-headline">Sign in</h1>
+          <BrandLogo variant="full" className="mx-auto max-h-11 sm:max-h-12" />
+          <h1 className="mt-6 text-2xl font-semibold tracking-tight text-vw-headline">Sign in</h1>
           <p className="mt-2 text-sm text-vw-muted">
             New merchant?{" "}
             <Link className="font-medium text-vw-accent hover:text-vw-accent-hover" to="/register">

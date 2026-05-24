@@ -1,9 +1,9 @@
 import axios, { isAxiosError } from "axios";
 import { useAuthStore } from "../store/auth";
 
-const baseURL = import.meta.env.VITE_API_URL?.trim().length
-  ? import.meta.env.VITE_API_URL
-  : "";
+/** REST base: `{VITE_API_URL}/api/v1` in production, `/api/v1` in dev (Vite proxy). */
+const apiRoot = (import.meta.env.VITE_API_URL ?? "").trim().replace(/\/$/, "");
+const baseURL = apiRoot.length > 0 ? `${apiRoot}/api/v1` : "/api/v1";
 
 export const api = axios.create({
   baseURL,

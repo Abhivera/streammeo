@@ -20,7 +20,7 @@ const envSchema = z
     /** Optional explicit DB name (otherwise parsed from MONGODB_URI or `streammeo`). */
     MONGODB_DB_NAME: z.string().min(1).optional(),
     /**
-     * Full Firebase service account JSON (single line or pretty). Enables POST /auth/firebase-session.
+     * Full Firebase service account JSON (single line or pretty). Enables POST /api/v1/auth/firebase-session.
      * Create in Firebase Console → Project settings → Service accounts → Generate new private key.
      */
     FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional().default(""),

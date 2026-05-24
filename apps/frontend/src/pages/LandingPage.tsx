@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { BrandLogo } from "../components/BrandLogo";
 
 function Reveal({
   children,
@@ -136,14 +137,14 @@ export function LandingPage(): ReactElement {
         aria-hidden
         style={{
           background:
-            "radial-gradient(120% 90% at 50% 0%, rgba(232, 250, 244, 0.95) 0%, transparent 52%), radial-gradient(90% 70% at 100% 30%, rgba(197, 233, 218, 0.5) 0%, transparent 48%)",
+            "radial-gradient(120% 90% at 50% 0%, rgba(255, 30, 45, 0.12) 0%, transparent 52%), radial-gradient(90% 70% at 100% 30%, rgba(255, 30, 45, 0.06) 0%, transparent 48%)",
         }}
       />
 
       <header className="relative z-10 border-b border-vw-border-softer bg-vw-bg">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 py-4 sm:px-6 lg:px-8">
-          <Link to="/" className="text-lg font-semibold tracking-tight text-vw-headline">
-            Streammeo
+          <Link to="/" className="flex items-center gap-2 outline-none ring-vw-accent ring-offset-2 ring-offset-vw-bg focus-visible:rounded-md focus-visible:ring-2">
+            <BrandLogo variant="full" className="max-h-8 sm:max-h-9" />
           </Link>
           <nav className="flex items-center gap-2 sm:gap-3" aria-label="Marketing">
             <Link
@@ -366,7 +367,10 @@ export function LandingPage(): ReactElement {
 
       <footer className="relative z-10 border-t border-vw-border bg-vw-surface px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-vw-muted">Streammeo · AI voice customer support for the web</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <BrandLogo variant="full" className="max-h-7 opacity-90 sm:max-h-8" />
+            <p className="text-sm text-vw-muted">AI voice customer support for the web</p>
+          </div>
           <div className="flex gap-6 text-sm font-medium text-vw-fg-soft">
             <Link to="/login" className="transition-colors hover:text-vw-fg">
               Log in

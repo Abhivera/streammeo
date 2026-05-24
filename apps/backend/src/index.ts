@@ -58,15 +58,23 @@ async function main(): Promise<void> {
     legacyHeaders: false,
   });
 
-  app.get("/health", (_req, res) => {
-    res.json({
-      ok: true,
-      firebaseAuth: config.firebaseServiceAccountJson.length > 0,
-    });
+  const healthJson = (): Record<string, unknown> => ({
+    ok: true,
+    firebaseAuth: config.firebaseServiceAccountJson.length > 0,
   });
 
-  app.use("/auth", authLimiter, createAuthRouter(config));
-  app.use("/workspace", createWorkspaceRouter(config));
+  /** Liveness for load balancers / Docker (unchanged path). */
+  app.get("/health", (_req, res) => {
+    res.json(healthJson());
+  });
+
+  const apiV1 = express.Router();
+  apiV1.get("/health", (_req, res) => {
+    res.json(healthJson());
+  });
+  apiV1.use("/auth", authLimiter, createAuthRouter(config));
+  apiV1.use("/workspace", createWorkspaceRouter(config));
+  app.use("/api/v1", apiV1);
 
   const server = createServer(app);
 

@@ -2,7 +2,7 @@ import type { Collection, Db } from "mongodb";
 import type { SessionDTO } from "../entities";
 import { toSessionDTO } from "../mappers";
 
-/** Pagination token for `/workspace/sessions` (newest first). */
+/** Pagination token for `GET /api/v1/workspace/sessions` (newest first). */
 export type SessionCursor = Readonly<{
   startedAt: number;
   id: string;

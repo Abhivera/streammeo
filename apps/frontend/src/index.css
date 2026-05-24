@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    color-scheme: light;
+    color-scheme: dark;
   }
 
   body {
@@ -13,16 +13,15 @@
     background-color: theme("colors.vw.bg");
     background-image: radial-gradient(
       120% 90% at 50% 0%,
-      #e8faf4 0%,
-      #d4f0e6 42%,
-      #c5e9da 100%
+      rgba(255, 30, 45, 0.07) 0%,
+      transparent 55%
     );
     background-attachment: fixed;
   }
 
   ::selection {
-    background-color: rgba(29, 158, 117, 0.28);
-    color: #041a12;
+    background-color: rgba(255, 30, 45, 0.35);
+    color: #ffffff;
   }
 }
 
@@ -63,7 +62,7 @@
 
   .vw-select {
     @apply vw-input appearance-none bg-[length:1rem] bg-[right_0.65rem_center] bg-no-repeat pr-9;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%230f6e56' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23a1a1aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
   }
 
   .vw-btn-primary {
@@ -152,19 +151,13 @@
     color: theme("colors.vw.success-fg");
   }
 
-  .vw-brand-wordmark {
-    @apply text-lg font-semibold tracking-tight;
-    color: theme("colors.vw.headline");
-  }
-
   .vw-auth-shell {
     @apply min-h-screen;
     background-color: theme("colors.vw.bg");
     background-image: radial-gradient(
       120% 90% at 50% 0%,
-      #e8faf4 0%,
-      #d4f0e6 42%,
-      #c5e9da 100%
+      rgba(255, 30, 45, 0.08) 0%,
+      transparent 58%
     );
     background-attachment: fixed;
   }

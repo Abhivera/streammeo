@@ -39,9 +39,7 @@ export default defineConfig({
   server: {
     // Dev-only: forward REST and Socket.IO to the backend (MongoDB is used only on the server).
     proxy: {
-      "/auth": "http://127.0.0.1:3001",
-      "/workspace": "http://127.0.0.1:3001",
-      "/health": "http://127.0.0.1:3001",
+      "/api/v1": "http://127.0.0.1:3001",
       // Voice widget testing: serve widget from localhost:5173 with data-backend-url "" (omit) still needs API — use backend port.
       "/socket.io": {
         target: "http://127.0.0.1:3001",

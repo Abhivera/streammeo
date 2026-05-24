@@ -33,70 +33,65 @@ export default {
       },
       colors: {
         vw: {
-          /** Layer stack — aligned with playground-widget-host.html mint preview */
-          sidebar: "#e8faf4",
-          bg: "#d4f0e6",
-          surface: "#ffffff",
-          /** Table header strip, inset wells */
-          "table-head": "#e8faf4",
-          /** Active nav row (avoid `*-nav-active` in class names; Tailwind misparses vs `active:`) */
-          navActive: "#c5e9da",
+          /** Dark SaaS — bg #0F0F10, card #18181B, accent #FF1E2D, text #FFFFFF */
+          sidebar: "#141416",
+          bg: "#0F0F10",
+          surface: "#18181B",
+          "table-head": "#1F1F23",
+          navActive: "rgba(255, 30, 45, 0.12)",
 
-          accent: "#1d9e75",
-          headline: "#041a12",
-          /** Stat numbers, table body, primary readable copy */
-          fg: "#0c3226",
-          muted: "#0f6e56",
-          /** Secondary copy (between fg and muted) */
-          "fg-soft": "#145a45",
+          accent: "#FF1E2D",
+          headline: "#FFFFFF",
+          fg: "#FFFFFF",
+          muted: "#A1A1AA",
+          "fg-soft": "#D4D4D8",
 
-          /** Unified chrome */
-          elevated: "#f4fbf8",
-          keywell: "#ecf6f1",
-          border: "#b0d8c4",
-          "border-faint": "#c5e3d6",
-          "border-softer": "#d9efe5",
+          elevated: "#27272A",
+          keywell: "#141416",
+          border: "#3F3F46",
+          "border-faint": "#35353B",
+          "border-softer": "#27272A",
 
-          placeholder: "rgba(15, 110, 86, 0.42)",
+          placeholder: "rgba(161, 161, 170, 0.55)",
 
-          "progress-track": "#c5e9da",
-          "progress-fill": "#1d9e75",
+          "progress-track": "#27272A",
+          "progress-fill": "#FF1E2D",
 
-          "badge-open-bg": "#e8faf4",
-          "badge-open-text": "#0f6e56",
+          "badge-open-bg": "#27272A",
+          "badge-open-text": "#A1A1AA",
 
-          "accent-hover": "#26b384",
-          "accent-fg": "#ffffff",
-          "accent-surface": "rgba(29, 158, 117, 0.12)",
-          "accent-veil": "rgba(29, 158, 117, 0.08)",
-          "accent-ring": "#45d4a4",
-          "accent-edge": "#178564",
-          "accent-strong": "#2bbf8f",
+          "accent-hover": "#FF4A57",
+          "accent-fg": "#FFFFFF",
+          "accent-surface": "rgba(255, 30, 45, 0.14)",
+          "accent-veil": "rgba(255, 30, 45, 0.08)",
+          "accent-ring": "rgba(255, 30, 45, 0.45)",
+          "accent-edge": "#CC1825",
+          "accent-strong": "#FF6B76",
 
-          danger: "#d64545",
-          "danger-soft": "rgba(214, 69, 69, 0.1)",
-          "danger-edge": "#b83232",
-          "danger-input": "rgba(214, 69, 69, 0.28)",
+          danger: "#F87171",
+          "danger-soft": "rgba(248, 113, 113, 0.12)",
+          "danger-edge": "#EF4444",
+          "danger-input": "rgba(248, 113, 113, 0.35)",
 
-          success: "#1d9e75",
-          "success-soft": "rgba(29, 158, 117, 0.14)",
-          "success-fg": "#041a12",
-          "success-edge": "#178564",
+          success: "#4ADE80",
+          "success-soft": "rgba(74, 222, 128, 0.14)",
+          "success-fg": "#ECFDF5",
+          "success-edge": "#22C55E",
 
-          "elevated-hover": "#e8f4ee",
+          "elevated-hover": "#323238",
 
-          "embed-preview": "#e8faf4",
-          "embed-preview-muted": "#d4f0e6",
-          "embed-body": "#0c3226",
+          "embed-preview": "#18181B",
+          "embed-preview-muted": "#141416",
+          "embed-body": "#FFFFFF",
 
-          warning: "#c9a227",
-          "warning-soft": "rgba(232, 197, 71, 0.22)",
-          "warning-edge": "#a88620",
+          warning: "#FACC15",
+          "warning-soft": "rgba(250, 204, 21, 0.14)",
+          "warning-edge": "#EAB308",
         },
       },
       boxShadow: {
-        vw: "0 1px 2px rgba(4, 26, 18, 0.06)",
-        "vw-lg": "0 12px 40px rgba(4, 26, 18, 0.1)",
+        vw: "0 1px 2px rgba(0, 0, 0, 0.35)",
+        "vw-lg": "0 12px 40px rgba(0, 0, 0, 0.45)",
       },
       transitionDuration: {
         vw: "180ms",

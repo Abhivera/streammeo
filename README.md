@@ -2,7 +2,7 @@
 
 **AI voice customer support** for your website: add a script tag or use the dashboard playground. Visitors tap a mic, speak in **English**, and get answers grounded in **your FAQs and tools**, with **session transcripts** for your team. Audio runs in real time over **Socket.IO**. **Deepgram** provides speech-to-text and TTS, **Groq** runs the LLM with tool use, and **MongoDB** stores users, workspaces, sessions, messages, FAQs, and tool calls. **Usage** (minutes used) is updated on the workspace document after each voice turn—there is **no Redis**.
 
-**Auth:** email/password JWT by default; optional **Google sign-in** via Firebase (`POST /auth/firebase-session`) when you configure Firebase on the server and the `VITE_FIREBASE_*` variables on the frontend.
+**Auth:** email/password JWT by default; optional **Google sign-in** via Firebase (`POST /api/v1/auth/firebase-session`) when you configure Firebase on the server and the `VITE_FIREBASE_*` variables on the frontend.
 
 ---
 
@@ -115,9 +115,9 @@ npm run dev:frontend
 | `FRONTEND_URL` | Yes | Dashboard origin for CORS (e.g. `http://localhost:5173`). |
 | `WIDGET_ALLOWED_ORIGINS` | No | `*` or comma-separated origins for widget CORS / Socket.IO. |
 | `TAVILY_API_KEY` | No | Enables **`web_search`** tool ([Tavily](https://docs.tavily.com/)). |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | No | Firebase **service account** JSON string; enables `POST /auth/firebase-session` for Google sign-in. |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | No | Firebase **service account** JSON string; enables `POST /api/v1/auth/firebase-session` for Google sign-in. |
 
-**Frontend (`VITE_*`):** `VITE_API_URL` — set to your public API origin in production (empty in dev uses the Vite proxy). For Google sign-in, set `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID` (see `apps/frontend/.env.example`).
+**Frontend (`VITE_*`):** `VITE_API_URL` — backend **origin only** (no `/api/v1` suffix); the dashboard client calls `…/api/v1/...` automatically. Empty in dev uses the Vite proxy. For Google sign-in, set the `VITE_FIREBASE_*` variables (see `apps/frontend/.env.example`).
 
 Docker Compose passes `MONGODB_URI`, API keys, and JWT-related vars; add `FIREBASE_SERVICE_ACCOUNT_JSON` to your `.env` if you need Firebase in containers.
 
@@ -208,7 +208,7 @@ The widget uses a **Shadow DOM** so host-page CSS does not clash with the mic + 
 
 | Name | Notes |
 | ---- | ----- |
-| `VITE_API_URL` | **Required.** Public origin of your backend, e.g. `https://api.yourdomain.com` (no trailing slash). |
+| `VITE_API_URL` | **Required.** Backend origin only, e.g. `https://api.yourdomain.com` (no trailing slash). REST uses `/api/v1` on that host. |
 | `VITE_FIREBASE_*` | Only if you use Google sign-in; same as local frontend docs. |
 
 On the **backend** host, set `FRONTEND_URL` (and `WIDGET_ALLOWED_ORIGINS` if needed) to your Vercel URL (e.g. `https://streammeo.vercel.app`).
@@ -219,7 +219,7 @@ On the **backend** host, set `FRONTEND_URL` (and `WIDGET_ALLOWED_ORIGINS` if nee
 
 With **`npm run dev:frontend`** and **`npm run dev:backend`** running:
 
-- Use **`http://localhost:5173`** as `data-backend-url` if you want the Vite dev server to proxy **`/socket.io`** to port **3001** (`apps/frontend/vite.config.ts`).
+- Use **`http://localhost:5173`** as `data-backend-url` if you want the Vite dev server to proxy **`/socket.io`** (and the dashboard to proxy **`/api/v1`**) to port **3001** (`apps/frontend/vite.config.ts`).
 - Or set **`data-backend-url`** to **`http://localhost:3001`** and ensure `WIDGET_ALLOWED_ORIGINS` allows your test page origin.
 
 ---

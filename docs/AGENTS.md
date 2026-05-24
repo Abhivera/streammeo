@@ -4,7 +4,7 @@ Monorepo (**npm** workspaces): `apps/backend`, `apps/frontend`, `apps/widget`, `
 
 ## Stack (current)
 
-- **Backend:** Express, Socket.IO, Zod config, JWT auth, optional Firebase Admin for `POST /auth/firebase-session` (Google → app JWT).
+- **Backend:** Express, Socket.IO, Zod config, JWT auth, REST under `/api/v1`, optional Firebase Admin for `POST /api/v1/auth/firebase-session` (Google → app JWT).
 - **Persistence:** MongoDB via `packages/db` (`StreammeoStore`, repos under `packages/db/src/repos/`, connection in `packages/db/src/mongo/connect.ts`). No Redis; usage minutes live on workspace documents.
 - **Voice:** Deepgram STT/TTS, Groq LLM (both required in production config).
 - **Frontend:** Vite + React; `VITE_API_URL` for production API origin; optional `VITE_FIREBASE_*` for Google button.
