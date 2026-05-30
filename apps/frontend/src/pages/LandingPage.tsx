@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { BrandLogo } from "../components/BrandLogo";
+import { LegalFooterLinks } from "../components/LegalPageShell";
 
 function Reveal({
   children,
@@ -369,22 +370,23 @@ export function LandingPage(): ReactElement {
       </main>
 
       <footer className="relative z-10 overflow-visible border-t border-vw-border bg-vw-surface px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-4 sm:max-w-md">
-            <div className="flex min-h-24 items-center sm:min-h-28">
-              <BrandLogo variant="full" fit="chrome" chromeSize="footer" className="opacity-90" />
+        <div className="mx-auto flex max-w-6xl flex-col gap-8">
+          <LegalFooterLinks />
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-4 sm:max-w-md">
+              <div className="flex min-h-24 items-center sm:min-h-28">
+                <BrandLogo variant="full" fit="chrome" chromeSize="footer" className="opacity-90" />
+              </div>
+              <p className="text-sm leading-relaxed text-vw-muted">AI voice customer support for the web</p>
             </div>
-            <p className="text-sm leading-relaxed text-vw-muted">
-              AI voice customer support for the web
-            </p>
-          </div>
-          <div className="flex gap-6 text-sm font-medium text-vw-fg-soft">
-            <Link to="/login" className="transition-colors hover:text-vw-fg">
-              Log in
-            </Link>
-            <Link to="/register" className="transition-colors hover:text-vw-fg">
-              Register
-            </Link>
+            <div className="flex gap-6 text-sm font-medium text-vw-fg-soft">
+              <Link to="/login" className="transition-colors hover:text-vw-fg">
+                Log in
+              </Link>
+              <Link to="/register" className="transition-colors hover:text-vw-fg">
+                Register
+              </Link>
+            </div>
           </div>
         </div>
       </footer>

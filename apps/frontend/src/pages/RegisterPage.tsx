@@ -127,6 +127,17 @@ export function RegisterPage(): ReactElement {
           <button type="submit" className="vw-btn-primary w-full">
             Continue
           </button>
+          <p className="text-center text-xs leading-relaxed text-vw-muted">
+            By creating an account, you agree to our{" "}
+            <Link className="font-medium text-vw-accent hover:text-vw-accent-hover" to="/legal/terms">
+              Terms &amp; Conditions
+            </Link>{" "}
+            and{" "}
+            <Link className="font-medium text-vw-accent hover:text-vw-accent-hover" to="/legal/privacy">
+              Privacy Policy
+            </Link>
+            .
+          </p>
           {firebaseReady ? (
             <>
               <div className="relative py-1">

@@ -11,6 +11,7 @@ import { SessionDetailPage } from "./pages/SessionDetailPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { FaqPage } from "./pages/FaqPage";
 import { PlaygroundPage } from "./pages/PlaygroundPage";
+import { LegalDocumentPage, LegalIndexPage } from "./pages/LegalDocumentPage";
 
 function Protected({ children }: { children: ReactNode }): ReactElement {
   const token = useAuthStore((s) => s.token);
@@ -31,6 +32,8 @@ export default function App(): ReactElement {
         <Route path="/" element={<HomeEntry />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/legal" element={<LegalIndexPage />} />
+        <Route path="/legal/:slug" element={<LegalDocumentPage />} />
         <Route
           element={
             <Protected>
