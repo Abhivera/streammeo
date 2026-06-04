@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voice support preview</title>
+    <style>
+      html {
+        height: 100%;
+        overflow: hidden;
+      }
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        box-sizing: border-box;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        color: #a1a1aa;
+        background: #0f0f10;
+        background-image: radial-gradient(
+            120% 90% at 50% 0%,
+            rgba(255, 30, 45, 0.08) 0%,
+            transparent 55%
+          );
+      }
+      .host-placeholder {
+        box-sizing: border-box;
+        display: flex;
+        height: 100%;
+        min-height: 0;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 0 1.25rem 1.75rem;
+        text-align: center;
+        pointer-events: none;
+        user-select: none;
+      }
+      /* Push hint below the fixed center mic (half height + gap); flex fills any extra space */
+      .host-hint-spacer {
+        flex: 1 0 auto;
+        min-height: calc(50% + 3.25rem);
+        width: 100%;
+      }
+      .host-hint-title {
+        margin: 0;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: #ffffff;
+      }
+      .host-hint-body {
+        margin: 0.5rem 0 0;
+        max-width: 20rem;
+        font-size: 0.8125rem;
+        line-height: 1.5;
+        color: #d4d4d8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="host-placeholder" aria-hidden="true">
+      <div class="host-hint-spacer"></div>
+      <p class="host-hint-title">Interactive preview</p>
+      <p class="host-hint-body">
+        Tap the microphone above, then allow microphone access so you can try a real turn.
+      </p>
+    </div>
+    <script>
+      (function () {
+        function onMessage(event) {
+          if (event.origin !== window.location.origin) return;
+          var d = event.data;
+          if (!d || d.type !== "streammeo-playground-init") return;
+          window.removeEventListener("message", onMessage);
+          var s = document.createElement("script");
+          s.src = d.widgetUrl && String(d.widgetUrl).length > 0 ? d.widgetUrl : "/widget.js";
+          s.async = true;
+          s.setAttribute("data-api-key", d.apiKey);
+          s.setAttribute("data-display-mode", "center");
+          if (d.backendUrl && String(d.backendUrl).length > 0) {
+            s.setAttribute("data-backend-url", d.backendUrl);
+          }
+          if (d.appSyncUrl && String(d.appSyncUrl).length > 0) {
+            s.setAttribute("data-appsync-url", d.appSyncUrl);
+          }
+          if (d.appSyncApiKey && String(d.appSyncApiKey).length > 0) {
+            s.setAttribute("data-appsync-api-key", d.appSyncApiKey);
+          }
+          document.body.appendChild(s);
+        }
+        window.addEventListener("message", onMessage);
+      })();
+    </script>
+  </body>
+</html>

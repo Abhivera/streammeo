@@ -1,0 +1,4 @@
+# Speed up uploads; not needed for the static frontend build
+Dockerfile
+nginx.conf
+**/*.local

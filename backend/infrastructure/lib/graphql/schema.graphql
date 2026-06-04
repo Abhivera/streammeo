@@ -1,0 +1,43 @@
+type VoiceEvent {
+  workspaceId: ID!
+  sessionId: ID!
+  role: String!
+  text: String!
+  audioUrl: String
+  createdAt: AWSDateTime!
+}
+
+type SessionStateEvent {
+  workspaceId: ID!
+  sessionId: ID!
+  state: String!
+  updatedAt: AWSDateTime!
+}
+
+type Mutation {
+  publishVoiceEvent(
+    workspaceId: ID!
+    sessionId: ID!
+    role: String!
+    text: String!
+    audioUrl: String
+  ): VoiceEvent
+  publishSessionState(workspaceId: ID!, sessionId: ID!, state: String!): SessionStateEvent
+}
+
+type Subscription {
+  onVoiceEvent(workspaceId: ID!, sessionId: ID!): VoiceEvent
+    @aws_subscribe(mutations: ["publishVoiceEvent"])
+  onSessionState(workspaceId: ID!, sessionId: ID!): SessionStateEvent
+    @aws_subscribe(mutations: ["publishSessionState"])
+}
+
+type Query {
+  health: String!
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
