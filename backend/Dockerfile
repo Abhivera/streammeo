@@ -1,13 +1,9 @@
-# syntax=docker/dockerfile:1
-FROM node:22-bookworm-slim AS deps
+FROM node:20-alpine
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
-  && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 COPY packages ./packages
-COPY widget ./widget
-RUN npm ci
-COPY tsconfig.base.json tsconfig.json ./
+RUN npm ci && npm run db:generate
+COPY tsconfig.json tsconfig.base.json ./
 COPY src ./src
-# Env is provided by the runtime (docker-compose / Lambda), not an .env file.
+EXPOSE 3001
 CMD ["npx", "tsx", "src/index.ts"]

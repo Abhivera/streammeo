@@ -1,10 +1,6 @@
 node_modules
 dist/
 packages/*/dist/
-widget/dist/
-
-# Local dev data (leftover SQLite/dev stores)
-packages/db/data/*.db
 
 # AWS CDK
 infrastructure/cdk.out/

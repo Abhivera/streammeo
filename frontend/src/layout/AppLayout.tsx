@@ -9,6 +9,7 @@ function navClass(isActive: boolean): string {
 
 export function AppLayout(): ReactElement {
   const setToken = useAuthStore((s) => s.setToken);
+  const workspace = useAuthStore((s) => s.workspace);
 
   return (
     <div className="flex min-h-screen bg-vw-bg">
@@ -16,23 +17,31 @@ export function AppLayout(): ReactElement {
         <div className="mb-8 px-1">
           <BrandLogo variant="full" className="h-[11rem] w-auto max-w-full sm:h-48" />
           <div className="mt-3 text-lg font-semibold tracking-tight text-vw-headline">Console</div>
-          <p className="mt-2 text-xs leading-snug text-vw-muted">Voice customer support</p>
+          <p className="mt-2 text-xs leading-snug text-vw-muted">
+            {workspace?.name ?? "Customer support"}
+          </p>
         </div>
         <nav className="flex flex-1 flex-col gap-0.5" aria-label="Primary">
           <NavLink to="/dashboard" className={({ isActive }) => navClass(isActive)}>
             Dashboard
           </NavLink>
-          <NavLink to="/sessions" className={({ isActive }) => navClass(isActive)}>
-            Sessions
-          </NavLink>
-          <NavLink to="/playground" className={({ isActive }) => navClass(isActive)}>
-            Playground
+          <NavLink to="/tickets" className={({ isActive }) => navClass(isActive)}>
+            Tickets
           </NavLink>
           <NavLink to="/settings" className={({ isActive }) => navClass(isActive)}>
             Settings
           </NavLink>
-          <NavLink to="/settings/faq" className={({ isActive }) => navClass(isActive)}>
-            FAQ
+          <NavLink to="/settings/inboxes" className={({ isActive }) => navClass(isActive)}>
+            Inboxes
+          </NavLink>
+          <NavLink to="/settings/sla" className={({ isActive }) => navClass(isActive)}>
+            SLA Policies
+          </NavLink>
+          <NavLink to="/settings/canned" className={({ isActive }) => navClass(isActive)}>
+            Canned Responses
+          </NavLink>
+          <NavLink to="/settings/kb" className={({ isActive }) => navClass(isActive)}>
+            Knowledge Base
           </NavLink>
         </nav>
         <button
@@ -50,7 +59,7 @@ export function AppLayout(): ReactElement {
             <BrandLogo variant="icon" />
             <div className="min-w-0">
               <span className="text-sm font-semibold tracking-tight text-vw-headline">Console</span>
-              <span className="block text-[0.65rem] text-vw-muted">Voice support</span>
+              <span className="block text-[0.65rem] text-vw-muted">Support desk</span>
             </div>
           </div>
           <button

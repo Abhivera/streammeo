@@ -1,29 +1,76 @@
-/** Local dev server: serves the control-plane + voice HTTP apps on one port.
- * In production these run as separate Lambdas behind API Gateway. */
-import express from "express";
-import { loadConfig } from "./config";
-import { initStore } from "./db";
-import { createLogger } from "./logger";
-import { buildPipelineDeps } from "./runtime/build-pipeline-deps";
-import { createHttpApp } from "./runtime/http-app";
-import { createVoiceApp } from "./runtime/voice-app";
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
+import { Redis } from "ioredis";
+import { loadConfig } from "./config.js";
+import { registerAuthRoutes } from "./auth/routes.js";
+import { registerTicketRoutes } from "./tickets/routes.js";
+import { registerInboxRoutes } from "./inbox/routes.js";
+import { registerSlaRoutes, checkSlaBreaches } from "./sla/routes.js";
+import { registerEmailRoutes } from "./email/routes.js";
+import { registerAnalyticsRoutes } from "./analytics/routes.js";
+import { registerBillingRoutes } from "./billing/routes.js";
+import { registerAiRoutes } from "./ai/routes.js";
+import { registerKbRoutes } from "./kb/routes.js";
+import { registerCsatRoutes } from "./csat/routes.js";
+import { registerPortalRoutes } from "./portal/routes.js";
+import { registerChatRoutes } from "./chat/routes.js";
+import { createPresenceServer } from "./presence/socket.js";
+import { prisma } from "./db.js";
 
-async function main(): Promise<void> {
-  const config = loadConfig();
-  await initStore(config);
-  const log = createLogger(config, "boot");
-  const deps = buildPipelineDeps(config);
+const config = loadConfig();
 
-  const app = express();
-  app.use(createHttpApp(config));
-  app.use(createVoiceApp(deps));
+const app = Fastify({
+  logger: {
+    transport:
+      config.NODE_ENV === "development"
+        ? { target: "pino-pretty", options: { colorize: true } }
+        : undefined,
+  },
+});
 
-  app.listen(config.PORT, () => {
-    log.info(`HTTP API listening on http://localhost:${config.PORT}`);
+await app.register(cors, {
+  origin: config.FRONTEND_URL,
+  credentials: true,
+});
+
+await app.register(rateLimit, {
+  max: 200,
+  timeWindow: "1 minute",
+});
+
+const redis = new Redis(config.REDIS_URL);
+
+app.get("/health", async () => ({ ok: true, service: "streammeo-api" }));
+
+await registerAuthRoutes(app, config);
+await registerTicketRoutes(app, config);
+await registerInboxRoutes(app, config);
+await registerSlaRoutes(app, config);
+await registerEmailRoutes(app, config);
+await registerAnalyticsRoutes(app, config);
+await registerBillingRoutes(app, config);
+await registerAiRoutes(app, config);
+await registerKbRoutes(app, config);
+await registerCsatRoutes(app, config);
+await registerPortalRoutes(app, config);
+await registerChatRoutes(app, config);
+
+const port = config.PORT;
+await app.listen({ port, host: "0.0.0.0" });
+
+createPresenceServer(app.server, config, redis);
+
+setInterval(() => {
+  void checkSlaBreaches().then((count) => {
+    if (count > 0) app.log.warn({ count }, "SLA breaches detected");
   });
-}
+}, 60_000);
 
-main().catch((err: unknown) => {
-  console.error(err);
-  process.exit(1);
+app.log.info(`Streammeo API listening on http://localhost:${port}`);
+
+process.on("SIGTERM", async () => {
+  await prisma.$disconnect();
+  redis.disconnect();
+  await app.close();
 });

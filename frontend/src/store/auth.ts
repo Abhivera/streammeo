@@ -1,25 +1,39 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { setAuthToken } from "../api/client";
+import type { User, Workspace } from "../types";
 
-const TOKEN_KEY = "vw_token";
-
-type AuthSlice = Readonly<{
+type AuthState = {
   token: string | null;
-  setToken: (t: string | null) => void;
-}>;
+  user: User | null;
+  workspace: Workspace | null;
+  setSession: (token: string, user: User, workspace: Workspace) => void;
+  setToken: (token: string | null) => void;
+  setWorkspace: (workspace: Workspace) => void;
+};
 
-function readStoredToken(): string | null {
-  if (typeof localStorage === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-export const useAuthStore = create<AuthSlice>((set) => ({
-  token: readStoredToken(),
-  setToken: (token) => {
-    if (token) {
-      localStorage.setItem(TOKEN_KEY, token);
-    } else {
-      localStorage.removeItem(TOKEN_KEY);
-    }
-    set({ token });
-  },
-}));
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      token: null,
+      user: null,
+      workspace: null,
+      setSession: (token, user, workspace) => {
+        setAuthToken(token);
+        set({ token, user, workspace });
+      },
+      setToken: (token) => {
+        setAuthToken(token);
+        if (!token) set({ token: null, user: null, workspace: null });
+        else set({ token });
+      },
+      setWorkspace: (workspace) => set({ workspace }),
+    }),
+    {
+      name: "streammeo-auth",
+      onRehydrateStorage: () => (state) => {
+        if (state?.token) setAuthToken(state.token);
+      },
+    },
+  ),
+);

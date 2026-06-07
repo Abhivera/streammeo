@@ -1,0 +1,308 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MemberRole {
+  admin
+  manager
+  agent
+}
+
+enum TicketStatus {
+  new
+  open
+  pending
+  resolved
+  closed
+}
+
+enum TicketPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum CommentVisibility {
+  public
+  internal
+}
+
+enum InboxChannel {
+  email
+  web_form
+  api
+  chat
+}
+
+model User {
+  id              String            @id @default(cuid())
+  email           String            @unique
+  password        String
+  name            String?
+  firebaseUid     String?           @unique
+  createdAt       DateTime          @default(now())
+  memberships     WorkspaceMember[]
+  assignedTickets Ticket[]          @relation("AssignedAgent")
+  comments        TicketComment[]
+  auditLogs       AuditLog[]
+}
+
+enum ArticleVisibility {
+  public
+  internal
+  gated
+}
+
+enum ChatSessionStatus {
+  active
+  converted
+  closed
+}
+
+model Workspace {
+  id               String           @id @default(cuid())
+  name             String
+  slug             String           @unique
+  apiKey           String           @unique @default(cuid())
+  plan             String           @default("starter")
+  ticketsUsed      Int              @default(0)
+  ticketsLimit     Int              @default(500)
+  aiRepliesUsed    Int              @default(0)
+  aiRepliesLimit   Int              @default(0)
+  razorpaySubscriptionId String?
+  widgetEnabled    Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  members          WorkspaceMember[]
+  tickets          Ticket[]
+  inboxes          Inbox[]
+  slaPolicies      SlaPolicy[]
+  cannedResponses  CannedResponse[]
+  tags             Tag[]
+  kbCategories     KbCategory[]
+  kbArticles       KbArticle[]
+  chatSessions     ChatSession[]
+}
+
+model WorkspaceMember {
+  id          String     @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        MemberRole @default(agent)
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+model Inbox {
+  id                   String       @id @default(cuid())
+  workspaceId          String
+  name                 String
+  email                String
+  channel              InboxChannel @default(email)
+  isDefault            Boolean      @default(false)
+  autoResponderEnabled Boolean      @default(false)
+  autoResponderMessage String?
+  businessHoursStart   Int?
+  businessHoursEnd     Int?
+  routingRules         Json         @default("[]")
+  createdAt            DateTime     @default(now())
+  workspace            Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tickets              Ticket[]
+
+  @@unique([workspaceId, email])
+}
+
+model Ticket {
+  id              String         @id @default(cuid())
+  workspaceId     String
+  inboxId         String?
+  number          Int
+  subject         String
+  status          TicketStatus   @default(new)
+  priority        TicketPriority @default(normal)
+  requesterEmail  String
+  requesterName   String?
+  assigneeId      String?
+  slaPolicyId     String?
+  slaBreached     Boolean        @default(false)
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  workspace       Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inbox           Inbox?         @relation(fields: [inboxId], references: [id])
+  assignee        User?          @relation("AssignedAgent", fields: [assigneeId], references: [id])
+  slaPolicy       SlaPolicy?     @relation(fields: [slaPolicyId], references: [id])
+  comments        TicketComment[]
+  tags            TicketTag[]
+  events          TicketEvent[]
+  csatSurvey      CsatSurvey?
+  portalTokens    PortalToken[]
+  chatSession     ChatSession?
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+  @@index([workspaceId, assigneeId])
+  @@index([workspaceId, createdAt])
+}
+
+model TicketComment {
+  id         String            @id @default(cuid())
+  ticketId   String
+  authorId   String?
+  body       String
+  visibility CommentVisibility @default(public)
+  isEmail    Boolean           @default(false)
+  createdAt  DateTime          @default(now())
+  ticket     Ticket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author     User?             @relation(fields: [authorId], references: [id])
+}
+
+model TicketEvent {
+  id        String   @id @default(cuid())
+  ticketId  String
+  actorId   String?
+  eventType String
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model Tag {
+  id          String      @id @default(cuid())
+  workspaceId String
+  name        String
+  color       String      @default("#FF1E2D")
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tickets     TicketTag[]
+
+  @@unique([workspaceId, name])
+}
+
+model TicketTag {
+  ticketId String
+  tagId    String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, tagId])
+}
+
+model SlaPolicy {
+  id                   String          @id @default(cuid())
+  workspaceId          String
+  name                 String
+  firstResponseMinutes Int
+  resolutionMinutes    Int
+  priority             TicketPriority?
+  isDefault            Boolean         @default(false)
+  workspace            Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tickets              Ticket[]
+}
+
+model CannedResponse {
+  id          String    @id @default(cuid())
+  workspaceId String
+  title       String
+  body        String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  actorId     String?
+  action      String
+  resource    String
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  actor       User?    @relation(fields: [actorId], references: [id])
+}
+
+model KbCategory {
+  id          String      @id @default(cuid())
+  workspaceId String
+  name        String
+  sortOrder   Int         @default(0)
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  articles    KbArticle[]
+
+  @@unique([workspaceId, name])
+}
+
+model KbArticle {
+  id          String            @id @default(cuid())
+  workspaceId String
+  categoryId  String?
+  title       String
+  slug        String
+  content     String
+  visibility  ArticleVisibility @default(public)
+  helpfulYes  Int               @default(0)
+  helpfulNo   Int               @default(0)
+  publishedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category    KbCategory?       @relation(fields: [categoryId], references: [id])
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, visibility])
+}
+
+model CsatSurvey {
+  id          String    @id @default(cuid())
+  ticketId    String    @unique
+  rating      Int?
+  comment     String?
+  sentAt      DateTime  @default(now())
+  respondedAt DateTime?
+  ticket      Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model PortalToken {
+  id        String   @id @default(cuid())
+  ticketId  String
+  token     String   @unique @default(cuid())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+}
+
+model ChatSession {
+  id           String            @id @default(cuid())
+  workspaceId  String
+  ticketId     String?           @unique
+  visitorId    String
+  visitorEmail String?
+  visitorName  String?
+  status       ChatSessionStatus @default(active)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  workspace    Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ticket       Ticket?           @relation(fields: [ticketId], references: [id])
+  messages     ChatMessage[]
+
+  @@index([workspaceId, status])
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  sessionId String
+  role      String
+  body      String
+  createdAt DateTime    @default(now())
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}

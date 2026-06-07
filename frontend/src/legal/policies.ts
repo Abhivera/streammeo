@@ -18,30 +18,30 @@ export const LEGAL_POLICIES: LegalPolicy[] = [
   {
     slug: "privacy",
     title: "Privacy Policy",
-    summary: "How Streammeo collects, uses, and protects data when you use the dashboard and embeddable voice widget.",
+    summary: "How Streammeo collects, uses, and protects data when you use the dashboard and embeddable live chat widget.",
     sections: [
       {
         title: "Overview",
         paragraphs: [
-          `${LEGAL_ENTITY} ("we", "us", "our") provides AI voice customer support software for websites, including a merchant dashboard and an embeddable widget ("Service"). This Privacy Policy explains what information we collect, how we use it, and the choices available to you.`,
-          "This policy applies to merchants who create a workspace with us and to end visitors who interact with the widget on a merchant's site. Merchants are responsible for informing their visitors about voice recording and data processing as required by applicable law.",
+          `${LEGAL_ENTITY} ("we", "us", "our") provides AI customer service and ticketing software, including an agent dashboard and an embeddable live chat widget ("Service"). This Privacy Policy explains what information we collect, how we use it, and the choices available to you.`,
+          "This policy applies to merchants who create a workspace with us and to end customers who interact with the widget or submit support requests. Merchants are responsible for informing their customers about data processing as required by applicable law.",
         ],
       },
       {
         title: "Information we collect",
         paragraphs: [
           "Account information: when you register, we collect your email address, password hash, and workspace details such as store or brand name, agent configuration, and FAQ content you provide.",
-          "Voice and session data: when a visitor uses the widget, audio is captured in the browser and streamed to our servers for speech-to-text, language model processing, and text-to-speech playback. We store session transcripts, tool-call metadata, session duration, and related analytics for the merchant workspace.",
+          "Support and chat data: when a customer uses the live chat widget or submits a ticket, we store message content, ticket metadata, session duration, and related analytics for the merchant workspace.",
           "Technical data: we collect standard log data such as IP address, browser type, device information, and timestamps to operate, secure, and debug the Service.",
-          "Authentication data: if you sign in with Google via Firebase, we receive profile information permitted by your Google account settings (such as email and display name).",
+          "Authentication data: when you sign in, we store your email address and account credentials as described in our account registration flow.",
         ],
       },
       {
         title: "How we use information",
         paragraphs: [
-          "We use collected information to provide and improve the Service, including running the voice pipeline, storing transcripts for merchant review, enforcing usage limits, preventing abuse, and responding to support requests.",
+          "We use collected information to provide and improve the Service, including managing tickets and conversations, storing support history for merchant review, enforcing usage limits, preventing abuse, and responding to support requests.",
           "Merchants configure system prompts, FAQs, and integrations; responses generated for visitors are based on that merchant content plus our AI and optional tools (such as FAQ search, order lookup, or web search when enabled).",
-          "We do not sell personal information. We do not use visitor voice conversations to train public AI models.",
+          "We do not sell personal information. We do not use customer support conversations to train public AI models.",
         ],
       },
       {
@@ -102,7 +102,7 @@ export const LEGAL_POLICIES: LegalPolicy[] = [
   {
     slug: "terms",
     title: "Terms & Conditions",
-    summary: "The agreement between you and Streammeo for using the dashboard, API, and voice widget.",
+    summary: "The agreement between you and Streammeo for using the dashboard, API, and live chat widget.",
     sections: [
       {
         title: "Agreement",
@@ -195,7 +195,7 @@ export const LEGAL_POLICIES: LegalPolicy[] = [
   {
     slug: "disclaimer",
     title: "Disclaimer",
-    summary: "Important limitations on AI-generated voice support and third-party information.",
+    summary: "Important limitations on AI-generated support replies and third-party information.",
     sections: [
       {
         title: "General",
@@ -344,7 +344,7 @@ export const LEGAL_POLICIES: LegalPolicy[] = [
   {
     slug: "accessibility",
     title: "Accessibility Statement",
-    summary: "Our commitment to accessible design for the Streammeo dashboard and voice widget.",
+    summary: "Our commitment to accessible design for the Streammeo dashboard and live chat widget.",
     sections: [
       {
         title: "Commitment",

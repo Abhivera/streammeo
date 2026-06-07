@@ -1,18 +1,23 @@
-import type { AppConfig } from "../config";
-import { createLogger } from "../logger";
+import type { AppConfig } from "../config.js";
 
-type PublishVoiceEventInput = Readonly<{
+export type TicketEventPayload = Readonly<{
   workspaceId: string;
-  sessionId: string;
-  role: string;
-  text: string;
-  audioUrl?: string | null;
+  ticketId: string;
+  eventType: string;
+  payload?: Record<string, unknown>;
 }>;
 
-type PublishSessionStateInput = Readonly<{
+export type BillingEventPayload = Readonly<{
   workspaceId: string;
-  sessionId: string;
-  state: string;
+  plan: string;
+  eventType: string;
+}>;
+
+export type EmailStatusEventPayload = Readonly<{
+  workspaceId: string;
+  ticketId?: string;
+  status: string;
+  payload?: Record<string, unknown>;
 }>;
 
 async function callGraphql(
@@ -20,8 +25,8 @@ async function callGraphql(
   query: string,
   variables: Record<string, unknown>,
 ): Promise<void> {
-  const url = config.APPSYNC_GRAPHQL_URL.trim();
-  const key = config.APPSYNC_API_KEY.trim();
+  const url = config.APPSYNC_GRAPHQL_URL?.trim();
+  const key = config.APPSYNC_API_KEY?.trim();
   if (!url || !key) return;
 
   const res = await fetch(url, {
@@ -32,63 +37,98 @@ async function callGraphql(
     },
     body: JSON.stringify({ query, variables }),
   });
+
   if (!res.ok) {
-    throw new Error(`AppSync publish failed (${res.status})`);
+    const text = await res.text().catch(() => "");
+    throw new Error(`AppSync publish failed (${res.status}): ${text}`);
   }
 }
 
-export async function publishVoiceEvent(
+export async function publishTicketEvent(
   config: AppConfig,
-  input: PublishVoiceEventInput,
+  input: TicketEventPayload,
 ): Promise<void> {
-  const log = createLogger(config, "appsync-publisher");
   try {
     await callGraphql(
       config,
-      `mutation PublishVoiceEvent(
+      `mutation PublishTicketEvent(
         $workspaceId: ID!,
-        $sessionId: ID!,
-        $role: String!,
-        $text: String!,
-        $audioUrl: String
+        $ticketId: ID!,
+        $eventType: String!,
+        $payload: AWSJSON
       ) {
-        publishVoiceEvent(
+        publishTicketEvent(
           workspaceId: $workspaceId,
-          sessionId: $sessionId,
-          role: $role,
-          text: $text,
-          audioUrl: $audioUrl
-        ) { sessionId }
+          ticketId: $ticketId,
+          eventType: $eventType,
+          payload: $payload
+        ) { ticketId eventType }
+      }`,
+      {
+        workspaceId: input.workspaceId,
+        ticketId: input.ticketId,
+        eventType: input.eventType,
+        payload: input.payload ? JSON.stringify(input.payload) : null,
+      },
+    );
+  } catch (err) {
+    console.warn("[appsync] publishTicketEvent failed", err);
+  }
+}
+
+export async function publishBillingEvent(
+  config: AppConfig,
+  input: BillingEventPayload,
+): Promise<void> {
+  try {
+    await callGraphql(
+      config,
+      `mutation PublishBillingEvent(
+        $workspaceId: ID!,
+        $plan: String!,
+        $eventType: String!
+      ) {
+        publishBillingEvent(
+          workspaceId: $workspaceId,
+          plan: $plan,
+          eventType: $eventType
+        ) { workspaceId plan }
       }`,
       input as Record<string, unknown>,
     );
   } catch (err) {
-    log.warn({ err, input }, "could not publish voice event");
+    console.warn("[appsync] publishBillingEvent failed", err);
   }
 }
 
-export async function publishSessionState(
+export async function publishEmailStatusEvent(
   config: AppConfig,
-  input: PublishSessionStateInput,
+  input: EmailStatusEventPayload,
 ): Promise<void> {
-  const log = createLogger(config, "appsync-publisher");
   try {
     await callGraphql(
       config,
-      `mutation PublishSessionState(
+      `mutation PublishEmailStatus(
         $workspaceId: ID!,
-        $sessionId: ID!,
-        $state: String!
+        $ticketId: ID,
+        $status: String!,
+        $payload: AWSJSON
       ) {
-        publishSessionState(
+        publishEmailStatus(
           workspaceId: $workspaceId,
-          sessionId: $sessionId,
-          state: $state
-        ) { sessionId }
+          ticketId: $ticketId,
+          status: $status,
+          payload: $payload
+        ) { status }
       }`,
-      input as Record<string, unknown>,
+      {
+        workspaceId: input.workspaceId,
+        ticketId: input.ticketId ?? null,
+        status: input.status,
+        payload: input.payload ? JSON.stringify(input.payload) : null,
+      },
     );
   } catch (err) {
-    log.warn({ err, input }, "could not publish session state");
+    console.warn("[appsync] publishEmailStatus failed", err);
   }
 }

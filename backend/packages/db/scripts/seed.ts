@@ -1,167 +1,161 @@
-/**
- * Clears DynamoDB app tables and inserts fixed test accounts + sample workspace data.
- * Env: `AWS_REGION`, table names, optional `DYNAMODB_ENDPOINT` for local Dynamo.
- * Optional: `SEED_TEST_PASSWORD` overrides the bcrypt source for seeded users.
- */
-
-import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { createStreammeoStore, type StreammeoStore } from "../src/store";
-
-const TEST_ACCOUNTS = [
-  { email: "moviesabhijit@gmail.com", workspaceName: "Movies Abhijit (test)" },
-  { email: "abhijitakadeveloper@gmail.com", workspaceName: "Abhijit AKA Developer (test)" },
-] as const;
-
-const password = process.env.SEED_TEST_PASSWORD ?? "abhivera@A1";
+import { prisma } from "../src/index.js";
 
 async function main(): Promise<void> {
-  const store = await createStreammeoStore({
-    region: process.env.AWS_REGION ?? "ap-south-1",
-    ...(process.env.DYNAMODB_ENDPOINT ? { endpoint: process.env.DYNAMODB_ENDPOINT } : {}),
-    usersTable: process.env.DYNAMODB_USERS_TABLE ?? "streammeo-users",
-    workspacesTable: process.env.DYNAMODB_WORKSPACES_TABLE ?? "streammeo-workspaces",
-    sessionsTable: process.env.DYNAMODB_SESSIONS_TABLE ?? "streammeo-sessions",
-    messagesTable: process.env.DYNAMODB_MESSAGES_TABLE ?? "streammeo-messages",
-    toolCallsTable: process.env.DYNAMODB_TOOL_CALLS_TABLE ?? "streammeo-tool-calls",
-    faqsTable: process.env.DYNAMODB_FAQS_TABLE ?? "streammeo-faqs",
+  const passwordHash = await bcrypt.hash("password123", 10);
+
+  const user = await prisma.user.upsert({
+    where: { email: "demo@streammeo.com" },
+    update: {},
+    create: {
+      email: "demo@streammeo.com",
+      password: passwordHash,
+      name: "Demo Agent",
+    },
   });
 
-  await store.clearAllData();
-  console.log("Cleared all DynamoDB rows in configured Streammeo tables");
+  const workspace = await prisma.workspace.upsert({
+    where: { slug: "acme-support" },
+    update: {},
+    create: {
+      name: "Acme Support",
+      slug: "acme-support",
+      plan: "growth",
+      ticketsLimit: 5000,
+      aiRepliesLimit: 500,
+      members: {
+        create: {
+          userId: user.id,
+          role: "admin",
+        },
+      },
+      inboxes: {
+        create: {
+          name: "Support",
+          email: "support@acme.com",
+          isDefault: true,
+          autoResponderEnabled: true,
+          autoResponderMessage:
+            "Thanks for reaching out. We've received your message and will respond shortly.",
+        },
+      },
+      slaPolicies: {
+        create: [
+          {
+            name: "Standard",
+            firstResponseMinutes: 240,
+            resolutionMinutes: 1440,
+            isDefault: true,
+          },
+          {
+            name: "Urgent",
+            firstResponseMinutes: 60,
+            resolutionMinutes: 480,
+            priority: "urgent",
+          },
+        ],
+      },
+      tags: {
+        create: [
+          { name: "billing", color: "#FACC15" },
+          { name: "bug", color: "#F87171" },
+          { name: "feature-request", color: "#4ADE80" },
+        ],
+      },
+      cannedResponses: {
+        create: [
+          {
+            title: "Acknowledge receipt",
+            body: "Hi {{customer_name}},\n\nThanks for contacting us. We're looking into your request and will update you soon.\n\nBest,\n{{agent_name}}",
+          },
+        ],
+      },
+    },
+    include: { inboxes: true, slaPolicies: true, tags: true },
+  });
 
-  const passwordHash = await bcrypt.hash(password, 12);
-  const iso = new Date().toISOString();
-  const created: Array<{ email: string; workspaceId: string; apiKey: string }> = [];
+  const defaultInbox = workspace.inboxes[0];
+  const defaultSla = workspace.slaPolicies.find((p) => p.isDefault) ?? workspace.slaPolicies[0];
 
-  for (const acct of TEST_ACCOUNTS) {
-    const email = acct.email.toLowerCase().trim();
-    const userId = randomUUID();
-    const workspaceId = randomUUID();
-    const apiKey =
-      `${randomUUID().replace(/-/gu, "")}${randomUUID().replace(/-/gu, "").slice(0, 10)}`;
+  const existingCount = await prisma.ticket.count({ where: { workspaceId: workspace.id } });
+  if (existingCount === 0) {
+    const tickets = [
+      {
+        number: 1001,
+        subject: "Cannot reset password",
+        status: "open" as const,
+        priority: "high" as const,
+        requesterEmail: "customer1@example.com",
+        requesterName: "Jane Doe",
+        body: "I tried resetting my password three times but never received the email.",
+      },
+      {
+        number: 1002,
+        subject: "Invoice missing line item",
+        status: "new" as const,
+        priority: "normal" as const,
+        requesterEmail: "billing@corp.io",
+        requesterName: "Alex Kim",
+        body: "Our March invoice is missing the enterprise add-on we purchased last week.",
+      },
+      {
+        number: 1003,
+        subject: "Feature request: dark mode",
+        status: "pending" as const,
+        priority: "low" as const,
+        requesterEmail: "dev@startup.co",
+        requesterName: "Sam Patel",
+        body: "Would love a dark mode option in the agent dashboard.",
+      },
+    ];
 
-    await store.users.createIfAbsent({
-      id: userId,
-      email,
-      password: passwordHash,
-      createdAt: iso,
+    for (const t of tickets) {
+      await prisma.ticket.create({
+        data: {
+          workspaceId: workspace.id,
+          inboxId: defaultInbox?.id,
+          slaPolicyId: defaultSla?.id,
+          number: t.number,
+          subject: t.subject,
+          status: t.status,
+          priority: t.priority,
+          requesterEmail: t.requesterEmail,
+          requesterName: t.requesterName,
+          assigneeId: t.status !== "new" ? user.id : null,
+          comments: {
+            create: {
+              body: t.body,
+              visibility: "public",
+              isEmail: true,
+            },
+          },
+          events: {
+            create: {
+              eventType: "ticket.created",
+              actorId: user.id,
+              payload: { channel: "email" },
+            },
+          },
+        },
+      });
+    }
+
+    await prisma.workspace.update({
+      where: { id: workspace.id },
+      data: { ticketsUsed: tickets.length },
     });
-
-    await store.workspaces.put({
-      id: workspaceId,
-      name: acct.workspaceName,
-      apiKey,
-      language: "en",
-      agentName: "Alex",
-      systemPrompt: "You are a helpful customer support agent.",
-      plan: "free",
-      minutesUsed: 0,
-      minutesLimit: 0,
-      ownerId: userId,
-      shopifyShopDomain: null,
-      shopifyAccessToken: null,
-      createdAt: iso,
-    });
-
-    await seedSampleWorkspaceContent(store, workspaceId);
-    created.push({ email, workspaceId, apiKey });
   }
 
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
-        region: process.env.AWS_REGION ?? "ap-south-1",
-        passwordSource: process.env.SEED_TEST_PASSWORD ? "SEED_TEST_PASSWORD env" : "default test password",
-        accounts: created.map((c) => ({
-          email: c.email,
-          workspaceId: c.workspaceId,
-          apiKey: c.apiKey,
-        })),
-        hint: "Sign in at /login with a seeded email and the same password used for bcrypt (default local password, or SEED_TEST_PASSWORD if you set it).",
-      },
-      null,
-      2,
-    ),
-  );
-  await store.close();
+  console.log("Seed complete:");
+  console.log("  Email:    demo@streammeo.com");
+  console.log("  Password: password123");
 }
 
-async function seedSampleWorkspaceContent(store: StreammeoStore, workspaceId: string): Promise<void> {
-  const t = Date.now() - 86_400_000;
-  await store.faqs.put({
-    workspaceId,
-    id: randomUUID(),
-    question: "What are your store hours?",
-    answer: "We are open Monday to Saturday, 10am to 8pm local time.",
-    embedding: [],
-    createdAtMs: t,
+main()
+  .catch((err: unknown) => {
+    console.error(err);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
   });
-  await store.faqs.put({
-    workspaceId,
-    id: randomUUID(),
-    question: "How do I return an item?",
-    answer: "Returns are accepted within 7 days with the original invoice.",
-    embedding: [],
-    createdAtMs: t + 1000,
-  });
-
-  const sessionA = randomUUID();
-  await store.sessions.createForWorkspace(workspaceId, sessionA);
-  const u1 = randomUUID();
-  const a1 = randomUUID();
-  await store.messages.put({
-    id: u1,
-    sessionId: sessionA,
-    workspaceId,
-    role: "user",
-    text: "Where is order VW-1001?",
-    audioUrl: null,
-    createdAtMs: t + 10_000,
-  });
-  await store.messages.put({
-    id: a1,
-    sessionId: sessionA,
-    workspaceId,
-    role: "assistant",
-    text: "Order VW-1001 shipped with DHL. Tracking JD0146000058290401.",
-    audioUrl: null,
-    createdAtMs: t + 11_000,
-  });
-  await store.sessions.addMessageCount(sessionA, 2);
-  await store.toolCalls.put({
-    id: randomUUID(),
-    sessionId: sessionA,
-    toolName: "get_order_status",
-    input: { order_id: "VW-1001" },
-    output: { result: "mock tracking payload" },
-    createdAtMs: t + 10_500,
-  });
-  await store.sessions.patch(sessionA, {
-    endedAt: new Date(t + 12_000).toISOString(),
-    durationSec: 45,
-    resolved: true,
-  });
-
-  const sessionB = randomUUID();
-  await store.sessions.createForWorkspace(workspaceId, sessionB);
-  const u2 = randomUUID();
-  await store.messages.put({
-    id: u2,
-    sessionId: sessionB,
-    workspaceId,
-    role: "user",
-    text: "Do you ship internationally?",
-    audioUrl: null,
-    createdAtMs: t + 50_000,
-  });
-  await store.sessions.addMessageCount(sessionB, 1);
-  await store.sessions.patch(sessionB, {
-    endedAt: new Date(t + 51_000).toISOString(),
-    durationSec: 12,
-    resolved: false,
-  });
-}
-
-await main();

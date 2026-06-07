@@ -55,7 +55,7 @@ export function LegalIndexPage(): ReactElement {
   return (
     <LegalPageShell
       title="Legal"
-      summary="Policies that govern use of the Streammeo dashboard, API, and embeddable voice widget."
+      summary="Policies that govern use of the Streammeo dashboard, API, and embeddable live chat widget."
     >
       <ul className="mt-10 divide-y divide-vw-border-softer rounded-xl border border-vw-border bg-vw-surface">
         {LEGAL_NAV.map((item) => {

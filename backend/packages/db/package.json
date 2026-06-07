@@ -1,25 +1,25 @@
 {
   "name": "@streammeo/db",
-  "version": "0.0.0",
   "private": true,
+  "version": "0.0.0",
   "type": "module",
-  "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json --noEmit",
-    "seed": "tsx scripts/seed.ts"
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "seed": "tsx --env-file=../../../.env scripts/seed.ts",
+    "studio": "prisma studio"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.908.0",
-    "@aws-sdk/lib-dynamodb": "^3.908.0"
+    "@prisma/client": "^6.9.0"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^22.19.18",
     "bcryptjs": "^2.4.3",
+    "prisma": "^6.9.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.3"
   }
 }

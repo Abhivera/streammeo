@@ -1,35 +1,49 @@
-type VoiceEvent {
+type TicketEvent {
   workspaceId: ID!
-  sessionId: ID!
-  role: String!
-  text: String!
-  audioUrl: String
+  ticketId: ID!
+  eventType: String!
+  payload: AWSJSON
   createdAt: AWSDateTime!
 }
 
-type SessionStateEvent {
+type BillingEvent {
   workspaceId: ID!
-  sessionId: ID!
-  state: String!
-  updatedAt: AWSDateTime!
+  plan: String!
+  eventType: String!
+  createdAt: AWSDateTime!
+}
+
+type EmailStatusEvent {
+  workspaceId: ID!
+  ticketId: ID
+  status: String!
+  payload: AWSJSON
+  createdAt: AWSDateTime!
 }
 
 type Mutation {
-  publishVoiceEvent(
+  publishTicketEvent(
     workspaceId: ID!
-    sessionId: ID!
-    role: String!
-    text: String!
-    audioUrl: String
-  ): VoiceEvent
-  publishSessionState(workspaceId: ID!, sessionId: ID!, state: String!): SessionStateEvent
+    ticketId: ID!
+    eventType: String!
+    payload: AWSJSON
+  ): TicketEvent
+  publishBillingEvent(workspaceId: ID!, plan: String!, eventType: String!): BillingEvent
+  publishEmailStatus(
+    workspaceId: ID!
+    ticketId: ID
+    status: String!
+    payload: AWSJSON
+  ): EmailStatusEvent
 }
 
 type Subscription {
-  onVoiceEvent(workspaceId: ID!, sessionId: ID!): VoiceEvent
-    @aws_subscribe(mutations: ["publishVoiceEvent"])
-  onSessionState(workspaceId: ID!, sessionId: ID!): SessionStateEvent
-    @aws_subscribe(mutations: ["publishSessionState"])
+  onTicketEvent(workspaceId: ID!): TicketEvent
+    @aws_subscribe(mutations: ["publishTicketEvent"])
+  onBillingEvent(workspaceId: ID!): BillingEvent
+    @aws_subscribe(mutations: ["publishBillingEvent"])
+  onEmailStatus(workspaceId: ID!): EmailStatusEvent
+    @aws_subscribe(mutations: ["publishEmailStatus"])
 }
 
 type Query {
