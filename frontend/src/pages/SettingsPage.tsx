@@ -1,6 +1,8 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { PageHeader } from "../components/PageHeader";
+import { usePageTitle } from "../hooks/usePageTitle";
 import {
   createBillingOrder,
   fetchBillingPlans,
@@ -13,6 +15,7 @@ import { useAuthStore } from "../store/auth";
 import type { BillingPlan } from "../types";
 
 export function SettingsPage(): ReactElement {
+  usePageTitle("Settings");
   const user = useAuthStore((s) => s.user);
   const workspace = useAuthStore((s) => s.workspace);
   const setWorkspace = useAuthStore((s) => s.setWorkspace);
@@ -92,11 +95,11 @@ export function SettingsPage(): ReactElement {
     : null;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-vw-headline">Settings</h1>
-        <p className="mt-1 text-sm text-vw-muted">Workspace profile and billing</p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="Workspace & billing"
+        description="View your workspace profile, monitor plan usage, upgrade via Razorpay, and copy the live chat embed snippet."
+      />
 
       {billingNotice === "success" ? (
         <p className="rounded-lg border border-vw-success-edge bg-vw-success-soft px-4 py-3 text-sm text-vw-success">
@@ -190,7 +193,9 @@ export function SettingsPage(): ReactElement {
         <section className="vw-panel space-y-3 p-6">
           <h2 className="text-lg font-medium text-vw-headline">Live chat widget</h2>
           <p className="text-sm text-vw-muted">
-            Paste this snippet before <code>&lt;/body&gt;</code> on your site.
+            Add real-time chat to your website. Paste this snippet before{" "}
+            <code className="text-vw-fg-soft">&lt;/body&gt;</code> — visitors can start a
+            session that converts to a ticket when they need agent help.
           </p>
           <pre className="overflow-x-auto rounded-lg bg-vw-elevated p-4 text-xs text-vw-fg-soft">
             {widgetSnippet}

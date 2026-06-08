@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useAuthStore } from "./store/auth";
 import { AppLayout } from "./layout/AppLayout";
+import { SettingsLayout } from "./layout/SettingsLayout";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -50,11 +51,13 @@ export default function App(): ReactElement {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="tickets" element={<TicketsPage />} />
           <Route path="tickets/:id" element={<TicketDetailPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="settings/inboxes" element={<InboxSettingsPage />} />
-          <Route path="settings/sla" element={<SlaSettingsPage />} />
-          <Route path="settings/canned" element={<CannedResponsesPage />} />
-          <Route path="settings/kb" element={<KnowledgeBasePage />} />
+          <Route path="settings" element={<SettingsLayout />}>
+            <Route index element={<SettingsPage />} />
+            <Route path="inboxes" element={<InboxSettingsPage />} />
+            <Route path="sla" element={<SlaSettingsPage />} />
+            <Route path="canned" element={<CannedResponsesPage />} />
+            <Route path="kb" element={<KnowledgeBasePage />} />
+          </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

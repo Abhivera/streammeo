@@ -1,9 +1,11 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
-import { api, fetchInboxes } from "../api/client";
-import type { Inbox } from "../types";
+import { PageHeader } from "../components/PageHeader";
+import { usePageTitle } from "../hooks/usePageTitle";
+import { api, fetchInboxes } from "../api/client";import type { Inbox } from "../types";
 
 export function InboxSettingsPage(): ReactElement {
+  usePageTitle("Shared inboxes");
   const [inboxes, setInboxes] = useState<Inbox[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -30,13 +32,20 @@ export function InboxSettingsPage(): ReactElement {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-vw-headline">Shared inboxes</h1>
-        <p className="mt-1 text-sm text-vw-muted">
-          Route inbound email to tickets. Point Brevo webhooks to{" "}
-          <code className="text-vw-fg-soft">/api/v1/webhooks/email/inbound</code>{" "}
-          (local Fastify or AWS Lambda URL from CDK <code className="text-vw-fg-soft">WebhookApiUrl</code>).
+    <div className="space-y-8">
+      <PageHeader
+        title="Shared inboxes"
+        description="Connect team email addresses to Streammeo. Inbound messages become tickets automatically when Brevo webhooks point to your inbound endpoint."
+      />
+
+      <div className="vw-panel space-y-3 p-5">
+        <h2 className="text-sm font-medium text-vw-headline">Webhook setup</h2>
+        <p className="text-sm text-vw-muted">
+          Point Brevo inbound webhooks to{" "}
+          <code className="text-vw-fg-soft">/api/v1/webhooks/email/inbound</code> on your
+          API host (local Fastify during dev, or the{" "}
+          <code className="text-vw-fg-soft">WebhookApiUrl</code> output from CDK in
+          production).
         </p>
       </div>
 

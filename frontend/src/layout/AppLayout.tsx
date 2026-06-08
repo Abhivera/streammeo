@@ -14,11 +14,11 @@ export function AppLayout(): ReactElement {
   return (
     <div className="flex min-h-screen bg-vw-bg">
       <aside className="hidden w-56 shrink-0 flex-col border-r border-vw-border bg-vw-sidebar p-4 shadow-vw md:flex">
-        <div className="mb-8 px-1">
+          <div className="mb-8 px-1">
           <BrandLogo variant="full" className="h-[11rem] w-auto max-w-full sm:h-48" />
-          <div className="mt-3 text-lg font-semibold tracking-tight text-vw-headline">Console</div>
+          <div className="mt-3 text-lg font-semibold tracking-tight text-vw-headline">Agent console</div>
           <p className="mt-2 text-xs leading-snug text-vw-muted">
-            {workspace?.name ?? "Customer support"}
+            {workspace?.name ?? "Customer support desk"}
           </p>
         </div>
         <nav className="flex flex-1 flex-col gap-0.5" aria-label="Primary">
@@ -28,20 +28,8 @@ export function AppLayout(): ReactElement {
           <NavLink to="/tickets" className={({ isActive }) => navClass(isActive)}>
             Tickets
           </NavLink>
-          <NavLink to="/settings" className={({ isActive }) => navClass(isActive)}>
+          <NavLink to="/settings" end={false} className={({ isActive }) => navClass(isActive)}>
             Settings
-          </NavLink>
-          <NavLink to="/settings/inboxes" className={({ isActive }) => navClass(isActive)}>
-            Inboxes
-          </NavLink>
-          <NavLink to="/settings/sla" className={({ isActive }) => navClass(isActive)}>
-            SLA Policies
-          </NavLink>
-          <NavLink to="/settings/canned" className={({ isActive }) => navClass(isActive)}>
-            Canned Responses
-          </NavLink>
-          <NavLink to="/settings/kb" className={({ isActive }) => navClass(isActive)}>
-            Knowledge Base
           </NavLink>
         </nav>
         <button
@@ -58,8 +46,8 @@ export function AppLayout(): ReactElement {
           <div className="flex min-w-0 items-center gap-2.5">
             <BrandLogo variant="icon" />
             <div className="min-w-0">
-              <span className="text-sm font-semibold tracking-tight text-vw-headline">Console</span>
-              <span className="block text-[0.65rem] text-vw-muted">Support desk</span>
+              <span className="text-sm font-semibold tracking-tight text-vw-headline">Agent console</span>
+              <span className="block text-[0.65rem] text-vw-muted">Streammeo support desk</span>
             </div>
           </div>
           <button

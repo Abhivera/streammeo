@@ -1,6 +1,8 @@
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { PageHeader } from "../components/PageHeader";
+import { usePageTitle } from "../hooks/usePageTitle";
 import { bulkUpdateTickets, fetchTickets } from "../api/client";
 import { subscribeToTicketEvents } from "../realtime/appsync";
 import { useAuthStore } from "../store/auth";
@@ -26,6 +28,7 @@ function priorityClass(priority: string): string {
 }
 
 export function TicketsPage(): ReactElement {
+  usePageTitle("Tickets");
   const workspaceId = useAuthStore((s) => s.workspace?.id);
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
   const [status, setStatus] = useState<TicketStatus | undefined>();
@@ -76,19 +79,18 @@ export function TicketsPage(): ReactElement {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-vw-headline">Ticket queue</h1>
-          <p className="mt-1 text-sm text-vw-muted">Unified inbox for all support channels</p>
-        </div>
+      <PageHeader
+        title="Ticket queue"
+        description="All support channels in one place. Filter by status, search by subject or requester, and run bulk actions on selected tickets."
+      >
         <input
           type="search"
           placeholder="Search tickets…"
-          className="vw-input sm:max-w-xs"
+          className="vw-input sm:w-64"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-      </div>
+      </PageHeader>
 
       <div className="flex flex-wrap gap-2">
         {STATUS_FILTERS.map((f) => (

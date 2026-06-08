@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
+import { usePageTitle } from "../hooks/usePageTitle";
 
 export function PortalCsatPage(): ReactElement {
   const { token } = useParams<{ token: string }>();
@@ -14,6 +15,8 @@ export function PortalCsatPage(): ReactElement {
   const [comment, setComment] = useState("");
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  usePageTitle("Rate your support experience");
 
   const baseURL = import.meta.env.VITE_API_URL || "";
 
@@ -65,8 +68,9 @@ export function PortalCsatPage(): ReactElement {
         <div>
           <h1 className="text-xl font-semibold text-vw-headline">How did we do?</h1>
           <p className="mt-2 text-sm text-vw-muted">
-            Ticket #{info.ticketNumber}: {info.subject}
+            Your feedback on ticket #{info.ticketNumber} helps us improve support for everyone.
           </p>
+          <p className="mt-1 text-sm text-vw-fg-soft">{info.subject}</p>
         </div>
         <div>
           <label className="vw-field-label">Rating (1–5)</label>

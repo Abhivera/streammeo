@@ -1,5 +1,7 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
+import { PageHeader } from "../components/PageHeader";
+import { usePageTitle } from "../hooks/usePageTitle";
 import { api, fetchSlaPolicies } from "../api/client";
 import type { SlaPolicy } from "../types";
 
@@ -10,6 +12,7 @@ function formatMinutes(minutes: number): string {
 }
 
 export function SlaSettingsPage(): ReactElement {
+  usePageTitle("SLA policies");
   const [policies, setPolicies] = useState<SlaPolicy[]>([]);
   const [name, setName] = useState("");
   const [firstResponseMinutes, setFirstResponseMinutes] = useState(240);
@@ -33,13 +36,11 @@ export function SlaSettingsPage(): ReactElement {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-vw-headline">SLA policies</h1>
-        <p className="mt-1 text-sm text-vw-muted">
-          Define first-response and resolution targets. Breaches are flagged on tickets automatically.
-        </p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="SLA policies"
+        description="Set first-response and resolution time targets. The breach checker runs every minute and flags overdue tickets in the queue and dashboard."
+      />
 
       <div className="vw-panel overflow-hidden">
         <table className="min-w-full text-left text-sm">

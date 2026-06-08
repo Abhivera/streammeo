@@ -2,10 +2,12 @@ import type { FormEvent, ReactElement } from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BrandLogo } from "../components/BrandLogo";
+import { usePageTitle } from "../hooks/usePageTitle";
 import { login } from "../api/client";
 import { useAuthStore } from "../store/auth";
 
 export function LoginPage(): ReactElement {
+  usePageTitle("Sign in");
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
   const [email, setEmail] = useState("");
@@ -31,6 +33,9 @@ export function LoginPage(): ReactElement {
           <BrandLogo variant="full" className="mx-auto h-56 w-auto sm:h-64" />
           <h1 className="mt-6 text-2xl font-semibold tracking-tight text-vw-headline">Sign in</h1>
           <p className="mt-2 text-sm text-vw-muted">
+            Access your team&apos;s support console — tickets, SLAs, and customer conversations in one place.
+          </p>
+          <p className="mt-3 text-sm text-vw-muted">
             New team?{" "}
             <Link className="font-medium text-vw-accent hover:text-vw-accent-hover" to="/register">
               Create a workspace

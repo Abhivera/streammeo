@@ -1,6 +1,8 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { PageHeader } from "../components/PageHeader";
+import { usePageTitle } from "../hooks/usePageTitle";
 import { fetchAnalytics } from "../api/client";
 import type { AnalyticsOverview } from "../types";
 
@@ -26,6 +28,7 @@ function statusBadge(status: string): string {
 }
 
 export function DashboardPage(): ReactElement {
+  usePageTitle("Dashboard");
   const [data, setData] = useState<AnalyticsOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,10 +48,10 @@ export function DashboardPage(): ReactElement {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-vw-headline">Overview</h1>
-        <p className="mt-1 text-sm text-vw-muted">Real-time queue health and team performance</p>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description="Live queue health, resolution metrics, CSAT scores, and your most recent tickets."
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Open tickets" value={data.openTickets} />

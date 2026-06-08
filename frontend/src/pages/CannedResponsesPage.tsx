@@ -1,5 +1,7 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
+import { PageHeader } from "../components/PageHeader";
+import { usePageTitle } from "../hooks/usePageTitle";
 import {
   createCannedResponse,
   deleteCannedResponse,
@@ -8,6 +10,7 @@ import {
 import type { CannedResponse } from "../types";
 
 export function CannedResponsesPage(): ReactElement {
+  usePageTitle("Canned responses");
   const [items, setItems] = useState<CannedResponse[]>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -39,11 +42,11 @@ export function CannedResponsesPage(): ReactElement {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-vw-headline">Canned responses</h1>
-        <p className="mt-1 text-sm text-vw-muted">Reusable reply templates for agents</p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="Canned responses"
+        description="Save reply templates your team can insert from the ticket composer. Use {{customer_name}} and {{agent_name}} as placeholders."
+      />
 
       <form onSubmit={(e) => void handleCreate(e)} className="vw-panel space-y-4 p-6">
         <h2 className="text-lg font-medium text-vw-headline">Add template</h2>

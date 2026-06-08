@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { usePageTitle } from "../hooks/usePageTitle";
 import { io, type Socket } from "socket.io-client";
 import {
   addTicketComment,
@@ -30,6 +31,8 @@ export function TicketDetailPage(): ReactElement {
   const [portalLink, setPortalLink] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const typingTimeout = useRef<number | null>(null);
+
+  usePageTitle(ticket ? `Ticket #${ticket.number}` : "Ticket");
 
   const load = useCallback(async () => {
     if (!id) return;

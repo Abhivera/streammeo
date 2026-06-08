@@ -1,9 +1,12 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
+import { PageHeader } from "../components/PageHeader";
+import { usePageTitle } from "../hooks/usePageTitle";
 import { createKbArticle, deleteKbArticle, fetchKbArticles } from "../api/client";
 import type { KbArticle } from "../types";
 
 export function KnowledgeBasePage(): ReactElement {
+  usePageTitle("Knowledge base");
   const [articles, setArticles] = useState<KbArticle[]>([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -30,11 +33,11 @@ export function KnowledgeBasePage(): ReactElement {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-vw-headline">Knowledge base</h1>
-        <p className="mt-1 text-sm text-vw-muted">Help articles for self-service and agent reference</p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="Knowledge base"
+        description="Publish help articles for customer self-service and agent reference. Published articles are searchable via the public KB API."
+      />
 
       <form onSubmit={(e) => void handleCreate(e)} className="vw-panel space-y-4 p-6">
         <h2 className="text-lg font-medium text-vw-headline">New article</h2>

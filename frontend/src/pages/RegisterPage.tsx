@@ -2,10 +2,12 @@ import type { FormEvent, ReactElement } from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BrandLogo } from "../components/BrandLogo";
+import { usePageTitle } from "../hooks/usePageTitle";
 import { register } from "../api/client";
 import { useAuthStore } from "../store/auth";
 
 export function RegisterPage(): ReactElement {
+  usePageTitle("Create workspace");
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
   const [email, setEmail] = useState("");
@@ -33,6 +35,9 @@ export function RegisterPage(): ReactElement {
           <BrandLogo variant="full" className="mx-auto h-56 w-auto sm:h-64" />
           <h1 className="mt-6 text-2xl font-semibold tracking-tight text-vw-headline">Create workspace</h1>
           <p className="mt-2 text-sm text-vw-muted">
+            Set up your company on Streammeo — unified ticketing, shared inboxes, and SLA tracking from day one.
+          </p>
+          <p className="mt-3 text-sm text-vw-muted">
             Already onboard?{" "}
             <Link className="font-medium text-vw-accent hover:text-vw-accent-hover" to="/login">
               Sign in

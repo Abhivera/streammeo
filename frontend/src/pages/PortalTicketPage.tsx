@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
+import { usePageTitle } from "../hooks/usePageTitle";
 
 type PortalTicket = {
   number: number;
@@ -16,6 +17,8 @@ export function PortalTicketPage(): ReactElement {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+
+  usePageTitle(ticket ? `Ticket #${ticket.number}` : "Support ticket");
 
   const baseURL = import.meta.env.VITE_API_URL || "";
 
@@ -59,11 +62,15 @@ export function PortalTicketPage(): ReactElement {
     <div className="min-h-screen bg-vw-bg px-4 py-10">
       <div className="mx-auto max-w-2xl space-y-6">
         <header>
-          <p className="text-sm text-vw-muted">Support ticket</p>
+          <p className="text-sm text-vw-muted">Customer support portal</p>
           <h1 className="mt-1 text-2xl font-semibold text-vw-headline">
             #{ticket.number} · {ticket.subject}
           </h1>
-          <p className="mt-2 text-sm capitalize text-vw-muted">Status: {ticket.status}</p>
+          <p className="mt-2 text-sm text-vw-muted">
+            View your conversation and reply below. Resolved tickets reopen automatically when you
+            send a message.
+          </p>
+          <p className="mt-1 text-sm capitalize text-vw-muted">Status: {ticket.status}</p>
         </header>
 
         <div className="space-y-4">
