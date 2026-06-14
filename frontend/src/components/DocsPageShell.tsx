@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { BrandLogo } from "./BrandLogo";
-import { DOCS_LAST_UPDATED, DOCS_NAV } from "../docs/constants";
+import { DOCS_LAST_UPDATED, DOCS_NAV } from "../doc-guides/constants";
 
 export function DocsFooterLinks({ className = "" }: { className?: string }): ReactElement {
   return (

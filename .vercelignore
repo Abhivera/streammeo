@@ -8,5 +8,6 @@ backend/**
 **/.env.*
 !**/.env.example
 
+# Root markdown documentation only — do not use a bare `docs/` pattern (matches frontend/src/doc-guides).
 /docs/
 docker-compose.yml

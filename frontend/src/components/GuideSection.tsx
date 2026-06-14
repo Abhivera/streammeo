@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import type { DocSection } from "../docs/types";
+import type { DocSection } from "../doc-guides/types";
 
 type GuideSectionProps = {
   section: DocSection;

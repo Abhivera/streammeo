@@ -13,8 +13,8 @@ import {
   SettingsIcon,
   TicketsIcon,
 } from "../components/NavIcons";
-import { DOCS_NAV, type DocSlug } from "../docs/constants";
-import { getDocGuide } from "../docs/guides";
+import { DOCS_NAV, type DocSlug } from "../doc-guides/constants";
+import { getDocGuide } from "../doc-guides/guides";
 import { usePageTitle } from "../hooks/usePageTitle";
 
 const DOC_ICONS: Record<DocSlug, ReactElement> = {

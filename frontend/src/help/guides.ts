@@ -1,4 +1,4 @@
-import type { DocGuide } from "../docs/types";
+import type { DocGuide } from "../doc-guides/types";
 
 export const HELP_GUIDES: DocGuide[] = [
   {
