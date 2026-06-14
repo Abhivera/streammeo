@@ -18,12 +18,12 @@
     "destroy:interactive": "node scripts/run-cdk.mjs destroy"
   },
   "dependencies": {
-    "aws-cdk-lib": "^2.178.2",
+    "aws-cdk-lib": "^2.259.0",
     "constructs": "^10.4.2"
   },
   "devDependencies": {
-    "@types/node": "^22.10.7",
-    "aws-cdk": "^2.1003.0",
+    "@types/node": "^24.0.0",
+    "aws-cdk": "^2.1126.0",
     "esbuild": "^0.24.2",
     "typescript": "^5.7.3"
   }

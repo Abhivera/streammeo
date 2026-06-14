@@ -177,7 +177,7 @@ export class ApiStack extends cdk.Stack {
       lambda.FunctionProps,
       "runtime" | "memorySize" | "environment" | "handler"
     > = {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       memorySize: 512,
       environment: env,
       handler: "index.handler",

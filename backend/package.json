@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": "24.x"
   },
   "workspaces": [
     "packages/*"
@@ -45,7 +45,7 @@
     "@types/aws-lambda": "^8.10.147",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.7",
-    "@types/node": "^22.10.7",
+    "@types/node": "^24.0.0",
     "pino-pretty": "^13.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"

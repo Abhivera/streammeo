@@ -47,7 +47,7 @@ Share **/help** with customers (e.g. `https://your-app.com/help`).
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 24+
 - Docker (DynamoDB Local + Redis)
 
 ### Setup
