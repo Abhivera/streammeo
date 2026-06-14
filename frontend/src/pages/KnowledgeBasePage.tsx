@@ -5,20 +5,27 @@ import { PanelState } from "../components/PanelState";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { createKbArticle, deleteKbArticle, fetchKbArticles } from "../api/client";
+import { apiErrorMessage } from "../lib/apiError";
 
 export function KnowledgeBasePage(): ReactElement {
   usePageTitle("Knowledge base");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
   const { data: articles, loading, reload } = useAsyncData(() => fetchKbArticles(), []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
-    await createKbArticle({ title: title.trim(), content: content.trim(), published: true });
-    setTitle("");
-    setContent("");
-    reload();
+    try {
+      await createKbArticle({ title: title.trim(), content: content.trim(), published: true });
+      setTitle("");
+      setContent("");
+      setFormError(null);
+      reload();
+    } catch (err) {
+      setFormError(apiErrorMessage(err, "Could not publish article."));
+    }
   };
 
   return (
@@ -56,6 +63,7 @@ export function KnowledgeBasePage(): ReactElement {
         <button type="submit" className="vw-btn-primary">
           Publish article
         </button>
+        {formError ? <p className="text-sm text-vw-danger">{formError}</p> : null}
       </form>
 
       <div className="vw-panel overflow-hidden">
@@ -74,7 +82,11 @@ export function KnowledgeBasePage(): ReactElement {
                 <button
                   type="button"
                   className="shrink-0 self-start text-sm text-vw-danger hover:underline sm:self-center"
-                  onClick={() => void deleteKbArticle(article.id).then(reload)}
+                  onClick={() =>
+                    void deleteKbArticle(article.id)
+                      .then(reload)
+                      .catch(() => alert("Could not delete article."))
+                  }
                 >
                   Delete
                 </button>

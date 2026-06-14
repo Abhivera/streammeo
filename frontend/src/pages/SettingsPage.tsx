@@ -30,6 +30,7 @@ export function SettingsPage(): ReactElement {
     aiRepliesUsed?: number;
     aiRepliesLimit?: number;
   } | null>(null);
+  const [usageError, setUsageError] = useState<string | null>(null);
   const [plans, setPlans] = useState<BillingPlan[]>([]);
   const [razorpayKeyId, setRazorpayKeyId] = useState<string | null>(RAZORPAY_KEY_ID);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
@@ -37,8 +38,15 @@ export function SettingsPage(): ReactElement {
   const billingNotice = searchParams.get("billing");
 
   const refreshUsage = useCallback(() => {
-    void fetchBillingUsage().then(setUsage);
-    void fetchMe().then((data) => setWorkspace(data.workspace));
+    void fetchBillingUsage()
+      .then((data) => {
+        setUsage(data);
+        setUsageError(null);
+      })
+      .catch(() => setUsageError("Could not load billing usage."));
+    void fetchMe()
+      .then((data) => setWorkspace(data.workspace))
+      .catch(() => {});
   }, [setWorkspace]);
 
   useEffect(() => {
@@ -156,6 +164,8 @@ export function SettingsPage(): ReactElement {
               </p>
             ) : null}
           </>
+        ) : usageError ? (
+          <p className="text-sm text-vw-danger">{usageError}</p>
         ) : (
           <p className="text-sm text-vw-muted">Loading usage…</p>
         )}

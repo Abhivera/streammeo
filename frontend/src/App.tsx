@@ -1,5 +1,7 @@
 import type { ReactElement } from "react";
+import { useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { fetchMe, setUnauthorizedHandler } from "./api/client";
 import { useAuthStore } from "./store/auth";
 import { AppLayout } from "./layout/AppLayout";
 import { SettingsLayout } from "./layout/SettingsLayout";
@@ -26,6 +28,29 @@ import { LiveChatPage } from "./pages/LiveChatPage";
 import { LiveWidgetSettingsPage } from "./pages/LiveWidgetSettingsPage";
 import { TeamSettingsPage } from "./pages/TeamSettingsPage";
 
+function AuthBootstrap(): null {
+  const setToken = useAuthStore((s) => s.setToken);
+  const setSession = useAuthStore((s) => s.setSession);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setToken(null);
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [setToken]);
+
+  useEffect(() => {
+    const token = useAuthStore.getState().token;
+    if (!token) return;
+
+    void fetchMe()
+      .then((data) => setSession(token, data.user, data.workspace))
+      .catch(() => setToken(null));
+  }, [setSession, setToken]);
+
+  return null;
+}
+
 function Protected({ children }: { children: React.ReactNode }): ReactElement {
   const token = useAuthStore((s) => s.token);
   if (!token) return <Navigate to="/login" replace />;
@@ -41,6 +66,7 @@ function HomeEntry(): ReactElement {
 export default function App(): ReactElement {
   return (
     <BrowserRouter>
+      <AuthBootstrap />
       <Routes>
         <Route path="/" element={<HomeEntry />} />
         <Route path="/login" element={<LoginPage />} />

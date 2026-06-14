@@ -10,7 +10,7 @@ export function InboxSettingsPage(): ReactElement {
   usePageTitle("Shared inboxes");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; tone: "success" | "error" } | null>(null);
   const { data: inboxes, reload } = useAsyncData(() => fetchInboxes(), []);
 
   async function createInbox(e: React.FormEvent) {
@@ -20,10 +20,10 @@ export function InboxSettingsPage(): ReactElement {
       await api.post("/api/v1/inboxes", { name, email });
       setName("");
       setEmail("");
-      setMessage("Inbox created");
+      setMessage({ text: "Inbox created", tone: "success" });
       reload();
     } catch {
-      setMessage("Failed to create inbox");
+      setMessage({ text: "Failed to create inbox", tone: "error" });
     }
   }
 
@@ -78,7 +78,11 @@ export function InboxSettingsPage(): ReactElement {
             required
           />
         </label>
-        {message ? <p className="text-sm text-vw-success">{message}</p> : null}
+        {message ? (
+          <p className={`text-sm ${message.tone === "success" ? "text-vw-success" : "text-vw-danger"}`}>
+            {message.text}
+          </p>
+        ) : null}
         <button type="submit" className="vw-btn-primary">
           Create inbox
         </button>

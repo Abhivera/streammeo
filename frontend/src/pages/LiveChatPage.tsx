@@ -14,7 +14,8 @@ import {
   fetchChatSessions,
   replyChatSession,
 } from "../api/client";
-import { isSocketIoEnabled } from "../config";
+import { isSocketIoEnabled, REMOTE_POLL_INTERVAL_MS } from "../config";
+import { apiErrorMessage } from "../lib/apiError";
 import { useAuthStore } from "../store/auth";
 import type { ChatMessage, ChatSessionDetail, ChatSessionSummary } from "../types";
 
@@ -52,23 +53,44 @@ export function LiveChatPage(): ReactElement {
   const [visitorTyping, setVisitorTyping] = useState(false);
   const [sending, setSending] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
   const seenKeysRef = useRef<Set<string>>(new Set());
 
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
   const loadDetail = useCallback(async (sessionId: string) => {
-    const data = await fetchChatSession(sessionId);
-    setDetail(data);
-    seenKeysRef.current.clear();
-    for (const message of data.messages) {
-      seenKeysRef.current.add(`${message.role}:${message.createdAt}:${message.body}`);
+    try {
+      const data = await fetchChatSession(sessionId);
+      setDetail(data);
+      setDetailError(null);
+      seenKeysRef.current.clear();
+      for (const message of data.messages) {
+        seenKeysRef.current.add(`${message.role}:${message.createdAt}:${message.body}`);
+      }
+      return data;
+    } catch (err) {
+      setDetail(null);
+      setDetailError(apiErrorMessage(err, "Could not load this conversation."));
+      return null;
     }
-    return data;
   }, []);
 
   useEffect(() => {
-    if (!selectedId) return;
-    void Promise.resolve().then(() => loadDetail(selectedId));
+    if (isSocketIoEnabled()) return;
+    const timer = window.setInterval(() => void loadSessions(), REMOTE_POLL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [loadSessions]);
+
+  useEffect(() => {
+    if (isSocketIoEnabled() || !selectedId) return;
+    const timer = window.setInterval(() => void loadDetail(selectedId), REMOTE_POLL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
   }, [selectedId, loadDetail]);
 
   useEffect(() => {
@@ -105,14 +127,14 @@ export function LiveChatPage(): ReactElement {
         }
         return next;
       });
-      if (selectedId === session.id && session.status !== "active") {
+      if (selectedIdRef.current === session.id && session.status !== "active") {
         setSelectedId(null);
         setDetail(null);
       }
     });
 
     socket.on("chat:message", (payload: { sessionId: string; message: ChatMessage }) => {
-      if (payload.sessionId !== selectedId) return;
+      if (payload.sessionId !== selectedIdRef.current) return;
       const key = `${payload.message.role}:${payload.message.createdAt}:${payload.message.body}`;
       if (seenKeysRef.current.has(key)) return;
       seenKeysRef.current.add(key);
@@ -124,7 +146,7 @@ export function LiveChatPage(): ReactElement {
     });
 
     socket.on("chat:typing", (payload: { sessionId: string; role: string; typing: boolean }) => {
-      if (payload.sessionId !== selectedId) return;
+      if (payload.sessionId !== selectedIdRef.current) return;
       if (payload.role === "visitor") setVisitorTyping(payload.typing);
     });
 
@@ -132,7 +154,7 @@ export function LiveChatPage(): ReactElement {
       socket.emit("chat:workspace:leave");
       socket.disconnect();
     };
-  }, [token, selectedId, setSessions]);
+  }, [token, setSessions]);
 
   useEffect(() => {
     const socket = socketRef.current;
@@ -148,6 +170,9 @@ export function LiveChatPage(): ReactElement {
     setSelectedId(sessionId);
     setReply("");
     setVisitorTyping(false);
+    setDetailError(null);
+    setActionError(null);
+    void loadDetail(sessionId);
   };
 
   const handleBackToList = () => {
@@ -165,12 +190,15 @@ export function LiveChatPage(): ReactElement {
   const handleClaim = async () => {
     if (!selectedId) return;
     setActionLoading(true);
+    setActionError(null);
     try {
       const result = await claimChatSession(selectedId);
       await loadDetail(selectedId);
       await loadSessions();
       const key = `${result.joinMessage.role}:${result.joinMessage.createdAt}:${result.joinMessage.body}`;
       seenKeysRef.current.add(key);
+    } catch (err) {
+      setActionError(apiErrorMessage(err, "Could not join this chat."));
     } finally {
       setActionLoading(false);
     }
@@ -181,6 +209,7 @@ export function LiveChatPage(): ReactElement {
     const text = reply.trim();
     setReply("");
     setSending(true);
+    setActionError(null);
     try {
       const result = await replyChatSession(selectedId, text);
       await loadDetail(selectedId);
@@ -192,6 +221,9 @@ export function LiveChatPage(): ReactElement {
         );
       }
       await loadSessions();
+    } catch (err) {
+      setReply(text);
+      setActionError(apiErrorMessage(err, "Could not send reply."));
     } finally {
       setSending(false);
     }
@@ -200,6 +232,7 @@ export function LiveChatPage(): ReactElement {
   const handleConvert = async () => {
     if (!selectedId) return;
     setActionLoading(true);
+    setActionError(null);
     try {
       const result = await convertChatSession(selectedId);
       await loadSessions();
@@ -208,6 +241,8 @@ export function LiveChatPage(): ReactElement {
       if (!result.alreadyConverted) {
         window.location.href = `/tickets/${result.ticketId}`;
       }
+    } catch (err) {
+      setActionError(apiErrorMessage(err, "Could not convert chat to ticket."));
     } finally {
       setActionLoading(false);
     }
@@ -216,11 +251,14 @@ export function LiveChatPage(): ReactElement {
   const handleClose = async () => {
     if (!selectedId) return;
     setActionLoading(true);
+    setActionError(null);
     try {
       await closeChatSession(selectedId);
       await loadSessions();
       setSelectedId(null);
       setDetail(null);
+    } catch (err) {
+      setActionError(apiErrorMessage(err, "Could not end chat."));
     } finally {
       setActionLoading(false);
     }
@@ -302,12 +340,25 @@ export function LiveChatPage(): ReactElement {
         >
           {!detail ? (
             <div className="flex min-h-0 flex-1 items-center justify-center px-6">
-              <EmptyState
-                compact
-                icon="chat"
-                title="Select a conversation"
-                description="Choose a chat from the list to view messages and reply."
-              />
+              {detailError ? (
+                <div className="max-w-md text-center">
+                  <p className="text-sm text-vw-danger">{detailError}</p>
+                  <button
+                    type="button"
+                    className="vw-btn-secondary mt-4 text-sm"
+                    onClick={handleBackToList}
+                  >
+                    Back to chat list
+                  </button>
+                </div>
+              ) : (
+                <EmptyState
+                  compact
+                  icon="chat"
+                  title="Select a conversation"
+                  description="Choose a chat from the list to view messages and reply."
+                />
+              )}
             </div>
           ) : (
             <>
@@ -420,6 +471,10 @@ export function LiveChatPage(): ReactElement {
                 </div>
                 <div ref={messagesEndRef} />
               </div>
+
+              {actionError ? (
+                <p className="border-t border-vw-border px-4 py-2 text-sm text-vw-danger">{actionError}</p>
+              ) : null}
 
               {isActive ? (
                 <div className="border-t border-vw-border p-4">

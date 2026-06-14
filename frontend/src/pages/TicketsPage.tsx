@@ -39,9 +39,15 @@ export function TicketsPage(): ReactElement {
   const workspaceId = useAuthStore((s) => s.workspace?.id);
   const canManageAssignees = user?.role === "admin" || user?.role === "manager";
   const [status, setStatus] = useState<TicketStatus | undefined>();
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkAssigneeId, setBulkAssigneeId] = useState("");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(searchInput), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   const { data: teamData } = useAsyncData(
     () => (canManageAssignees ? fetchTeamMembers() : Promise.resolve(null)),
@@ -51,6 +57,7 @@ export function TicketsPage(): ReactElement {
   const {
     data: tickets,
     loading,
+    error,
     reload,
   } = useAsyncData(
     () => fetchTickets({ status, search: search || undefined }).then((res) => res.items),
@@ -122,8 +129,8 @@ export function TicketsPage(): ReactElement {
           type="search"
           placeholder="Search tickets…"
           className="vw-input !mt-0 w-full sm:w-64"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
         />
       </PageHeader>
 
@@ -196,7 +203,11 @@ export function TicketsPage(): ReactElement {
       ) : null}
 
       <div className="vw-panel overflow-hidden">
-        {loading ? (
+        {error ? (
+          <div className="border-l-2 border-l-vw-danger p-6 text-sm text-vw-danger">
+            Failed to load tickets. Try refreshing the page.
+          </div>
+        ) : loading ? (
           <TicketsSkeleton />
         ) : ticketList.length === 0 ? (
           <EmptyState

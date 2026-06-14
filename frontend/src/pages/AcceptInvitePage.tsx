@@ -17,6 +17,7 @@ export function AcceptInvitePage(): ReactElement {
   const setSession = useAuthStore((s) => s.setSession);
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") ?? "";
+  const tokenError = token ? null : "Invalid invite link.";
 
   const [preview, setPreview] = useState<TeamInvitePreview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -26,14 +27,13 @@ export function AcceptInvitePage(): ReactElement {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!token) {
-      setLoadError("Invalid invite link.");
-      return;
-    }
+    if (!token) return;
     fetchTeamInvitePreview(token)
       .then(setPreview)
       .catch(() => setLoadError("This invite is invalid or has expired."));
   }, [token]);
+
+  const inviteError = tokenError ?? loadError;
 
   async function submit(e: FormEvent): Promise<void> {
     e.preventDefault();
@@ -64,9 +64,9 @@ export function AcceptInvitePage(): ReactElement {
     }
   }
 
-  if (loadError) {
+  if (inviteError) {
     return (
-      <AuthMarketingLayout title="Invite unavailable" description={loadError}>
+      <AuthMarketingLayout title="Invite unavailable" description={inviteError}>
         <p className="text-center text-sm text-vw-muted">
           <Link className="font-semibold text-vw-accent hover:text-vw-accent-hover" to="/login">
             Sign in

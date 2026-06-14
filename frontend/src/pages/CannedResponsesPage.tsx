@@ -9,25 +9,36 @@ import {
   deleteCannedResponse,
   fetchCannedResponses,
 } from "../api/client";
+import { apiErrorMessage } from "../lib/apiError";
 
 export function CannedResponsesPage(): ReactElement {
   usePageTitle("Canned responses");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
   const { data: items, loading, reload } = useAsyncData(() => fetchCannedResponses(), []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !body.trim()) return;
-    await createCannedResponse(title.trim(), body.trim());
-    setTitle("");
-    setBody("");
-    reload();
+    try {
+      await createCannedResponse(title.trim(), body.trim());
+      setTitle("");
+      setBody("");
+      setFormError(null);
+      reload();
+    } catch (err) {
+      setFormError(apiErrorMessage(err, "Could not save template."));
+    }
   };
 
   const handleDelete = async (id: string) => {
-    await deleteCannedResponse(id);
-    reload();
+    try {
+      await deleteCannedResponse(id);
+      reload();
+    } catch {
+      alert("Could not delete template.");
+    }
   };
 
   return (
@@ -67,6 +78,7 @@ export function CannedResponsesPage(): ReactElement {
         <button type="submit" className="vw-btn-primary">
           Save template
         </button>
+        {formError ? <p className="text-sm text-vw-danger">{formError}</p> : null}
       </form>
 
       <div className="vw-panel overflow-hidden">

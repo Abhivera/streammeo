@@ -8,5 +8,5 @@ backend/**
 **/.env.*
 !**/.env.example
 
-docs/
+/docs/
 docker-compose.yml

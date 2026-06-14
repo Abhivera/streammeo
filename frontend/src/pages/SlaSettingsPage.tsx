@@ -4,6 +4,7 @@ import { PageHeader } from "../components/PageHeader";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { api, fetchSlaPolicies } from "../api/client";
+import { apiErrorMessage } from "../lib/apiError";
 import type { SlaPolicy } from "../types";
 
 function formatMinutes(minutes: number): string {
@@ -17,17 +18,23 @@ export function SlaSettingsPage(): ReactElement {
   const [name, setName] = useState("");
   const [firstResponseMinutes, setFirstResponseMinutes] = useState(240);
   const [resolutionMinutes, setResolutionMinutes] = useState(1440);
+  const [formError, setFormError] = useState<string | null>(null);
   const { data: policies, reload } = useAsyncData(() => fetchSlaPolicies(), []);
 
   async function createPolicy(e: React.FormEvent) {
     e.preventDefault();
-    await api.post("/api/v1/sla-policies", {
-      name,
-      firstResponseMinutes,
-      resolutionMinutes,
-    });
-    setName("");
-    reload();
+    try {
+      await api.post("/api/v1/sla-policies", {
+        name,
+        firstResponseMinutes,
+        resolutionMinutes,
+      });
+      setName("");
+      setFormError(null);
+      reload();
+    } catch (err) {
+      setFormError(apiErrorMessage(err, "Could not create SLA policy."));
+    }
   }
 
   return (
@@ -117,6 +124,7 @@ export function SlaSettingsPage(): ReactElement {
         <button type="submit" className="vw-btn-primary">
           Create policy
         </button>
+        {formError ? <p className="text-sm text-vw-danger">{formError}</p> : null}
       </form>
     </div>
   );

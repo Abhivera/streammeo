@@ -24,21 +24,28 @@ export function useAsyncData<T>(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const fetcherRef = useRef(fetcher);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     fetcherRef.current = fetcher;
   }, [fetcher]);
 
   const reload = useCallback(() => {
+    const requestId = ++requestIdRef.current;
     return (async () => {
       setLoading(true);
       setError(null);
       try {
-        setData(await fetcherRef.current());
+        const result = await fetcherRef.current();
+        if (requestId !== requestIdRef.current) return;
+        setData(result);
       } catch (err) {
+        if (requestId !== requestIdRef.current) return;
         setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
-        setLoading(false);
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
     })();
   }, []);

@@ -8,7 +8,8 @@ export function PortalTicketPage(): ReactElement {
   const { token } = useParams<{ token: string }>();
   const [ticket, setTicket] = useState<Awaited<ReturnType<typeof fetchPortalTicket>> | null>(null);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [replyError, setReplyError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   usePageTitle(ticket ? `Ticket #${ticket.number}` : "Support ticket");
@@ -17,23 +18,29 @@ export function PortalTicketPage(): ReactElement {
     if (!token) return;
     fetchPortalTicket(token)
       .then(setTicket)
-      .catch(() => setError("This link is invalid or has expired."));
+      .catch(() => setLoadError("This link is invalid or has expired."));
   }, [token]);
 
   const handleReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !message.trim()) return;
-    await replyPortalTicket(token, message.trim());
-    setMessage("");
-    setSent(true);
-    const updated = await fetchPortalTicket(token);
-    setTicket(updated);
+    try {
+      await replyPortalTicket(token, message.trim());
+      setMessage("");
+      setSent(true);
+      setReplyError(null);
+      const updated = await fetchPortalTicket(token);
+      setTicket(updated);
+    } catch {
+      setReplyError("Could not send your reply. Please try again.");
+      setSent(false);
+    }
   };
 
-  if (error) {
+  if (loadError) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-vw-bg p-6">
-        <p className="text-vw-danger">{error}</p>
+        <p className="text-vw-danger">{loadError}</p>
       </div>
     );
   }
@@ -89,6 +96,7 @@ export function PortalTicketPage(): ReactElement {
               Send reply
             </button>
             {sent ? <p className="text-sm text-vw-success">Reply sent.</p> : null}
+            {replyError ? <p className="text-sm text-vw-danger">{replyError}</p> : null}
           </form>
         ) : (
           <p className="text-sm text-vw-muted">This ticket is closed.</p>

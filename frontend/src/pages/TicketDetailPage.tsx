@@ -29,6 +29,7 @@ export function TicketDetailPage(): ReactElement {
   const {
     data: ticket,
     loading,
+    error,
     reload: load,
     setData: setTicket,
   } = useAsyncData(
@@ -51,6 +52,7 @@ export function TicketDetailPage(): ReactElement {
   const [presence, setPresence] = useState<PresenceUser[]>([]);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [portalLink, setPortalLink] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const typingTimeout = useRef<number | null>(null);
@@ -128,9 +130,13 @@ export function TicketDetailPage(): ReactElement {
 
   const handleCopyPortalLink = async () => {
     if (!id) return;
-    const url = portalLink ?? (await getTicketPortalLink(id));
-    setPortalLink(url);
-    await navigator.clipboard.writeText(url);
+    try {
+      const url = portalLink ?? (await getTicketPortalLink(id));
+      setPortalLink(url);
+      await navigator.clipboard.writeText(url);
+    } catch {
+      setActionError("Could not copy portal link.");
+    }
   };
 
   const applyCanned = (body: string) => {
@@ -144,8 +150,13 @@ export function TicketDetailPage(): ReactElement {
 
   const handleStatusChange = async (status: TicketStatus) => {
     if (!id) return;
-    const updated = await updateTicket(id, { status });
-    setTicket(updated);
+    try {
+      const updated = await updateTicket(id, { status });
+      setTicket(updated);
+      setActionError(null);
+    } catch {
+      setActionError("Could not update ticket status.");
+    }
   };
 
   const handleAssigneeChange = async (assigneeId: string | null) => {
@@ -166,11 +177,32 @@ export function TicketDetailPage(): ReactElement {
   const handleSubmitReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id || !reply.trim()) return;
-    await addTicketComment(id, reply.trim(), internalNote ? "internal" : "public");
-    setReply("");
-    emitTyping(false);
-    load();
+    try {
+      await addTicketComment(id, reply.trim(), internalNote ? "internal" : "public");
+      setReply("");
+      emitTyping(false);
+      setActionError(null);
+      load();
+    } catch {
+      setActionError("Could not send reply.");
+    }
   };
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <Link
+          to="/tickets"
+          className="inline-flex items-center gap-1 text-sm text-vw-accent transition-colors hover:text-vw-accent-hover"
+        >
+          Back to queue
+        </Link>
+        <div className="vw-panel border-l-2 border-l-vw-danger p-6 text-sm text-vw-danger">
+          {error.message || "Ticket not found or you do not have access."}
+        </div>
+      </div>
+    );
+  }
 
   if (loading || !ticket) {
     return (
@@ -235,8 +267,9 @@ export function TicketDetailPage(): ReactElement {
         </div>
       </div>
 
-      {(otherViewers.length > 0 || typingUsers.length > 0) && (
+      {(otherViewers.length > 0 || typingUsers.length > 0 || actionError) && (
         <div className="rounded-lg border border-vw-warning-edge bg-vw-warning-soft px-4 py-3 text-sm text-vw-warning">
+          {actionError ? <p className="text-vw-danger">{actionError}</p> : null}
           {otherViewers.length > 0 ? (
             <span>
               Also viewing: {otherViewers.map((v) => v.name).join(", ")}

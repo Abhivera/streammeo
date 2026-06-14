@@ -10,7 +10,7 @@ export function PortalCsatPage(): ReactElement {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [done, setDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   usePageTitle("Rate your support experience");
 
@@ -18,20 +18,25 @@ export function PortalCsatPage(): ReactElement {
     if (!token) return;
     fetchPortalCsat(token)
       .then(setInfo)
-      .catch(() => setError("Survey link is invalid or expired."));
+      .catch(() => setSubmitError("Survey link is invalid or expired."));
   }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
-    await submitPortalCsat(token, { rating, comment: comment || undefined });
-    setDone(true);
+    try {
+      await submitPortalCsat(token, { rating, comment: comment || undefined });
+      setDone(true);
+      setSubmitError(null);
+    } catch {
+      setSubmitError("Could not submit feedback. Please try again.");
+    }
   };
 
-  if (error) {
+  if (submitError && !info) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-vw-bg p-6">
-        <p className="text-vw-danger">{error}</p>
+        <p className="text-vw-danger">{submitError}</p>
       </div>
     );
   }
@@ -99,6 +104,7 @@ export function PortalCsatPage(): ReactElement {
         <button type="submit" className="vw-btn-primary w-full">
           Submit feedback
         </button>
+        {submitError ? <p className="text-sm text-vw-danger">{submitError}</p> : null}
         <p className="text-center text-sm text-vw-muted">
           <Link to="/help/rate-your-experience" className="text-vw-accent hover:text-vw-accent-hover">
             About this survey

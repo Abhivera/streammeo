@@ -103,7 +103,7 @@ export function LiveWidgetSettingsPage(): ReactElement {
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <a
-              href={`/widget-demo.html?apiKey=${encodeURIComponent(workspace?.apiKey ?? "")}`}
+              href={`/widget-demo.html?apiKey=${encodeURIComponent(workspace?.apiKey ?? "")}&apiUrl=${encodeURIComponent(apiBase)}`}
               className="vw-btn-secondary text-sm"
             >
               Open demo
