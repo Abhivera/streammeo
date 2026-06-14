@@ -1,19 +1,9 @@
 services:
-  postgres:
-    image: postgres:16-alpine
+  dynamodb:
+    image: amazon/dynamodb-local:latest
     ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: streammeo
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - "8000:8000"
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
 
   redis:
     image: redis:7-alpine
@@ -34,14 +24,18 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/streammeo
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      DYNAMODB_TABLE_NAME: streammeo
       REDIS_URL: redis://redis:6379
       PORT: "3001"
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      WIDGET_ALLOWED_ORIGINS: ${WIDGET_ALLOWED_ORIGINS:-*}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-docker-change-me-in-docker}
+      AWS_REGION: ap-south-1
+      NODE_ENV: production
     depends_on:
-      postgres:
-        condition: service_healthy
+      dynamodb:
+        condition: service_started
       redis:
         condition: service_healthy
 
@@ -49,10 +43,9 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:3001
     ports:
       - "5173:80"
     depends_on:
       - backend
-
-volumes:
-  postgres_data:

@@ -1,33 +1,11 @@
-import { PrismaClient } from "@prisma/client";
-
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
-
-export { PrismaClient };
-export type {
-  User,
-  Workspace,
-  WorkspaceMember,
-  Ticket,
-  TicketComment,
-  TicketEvent,
-  Inbox,
-  SlaPolicy,
-  Tag,
-  CannedResponse,
-  AuditLog,
-  MemberRole,
-  TicketStatus,
-  TicketPriority,
-  CommentVisibility,
-  InboxChannel,
-} from "@prisma/client";
+export * from "./types.js";
+export { docClient, disconnect, getTableName } from "./client.js";
+export * from "./users.js";
+export * from "./workspaces.js";
+export * from "./tickets.js";
+export * from "./canned.js";
+export * from "./kb.js";
+export * from "./chat.js";
+export * from "./portal.js";
+export * from "./invites.js";
+export * from "./widget.js";

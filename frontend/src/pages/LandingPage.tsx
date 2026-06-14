@@ -1,7 +1,6 @@
 import type { ReactElement } from "react";
 import { Link } from "react-router-dom";
-import { BrandLogo } from "../components/BrandLogo";
-import { LegalFooterLinks } from "../components/LegalPageShell";
+import { MarketingShell } from "../components/MarketingShell";
 import { usePageTitle } from "../hooks/usePageTitle";
 
 const FEATURES = [
@@ -41,53 +40,32 @@ export function LandingPage(): ReactElement {
   usePageTitle();
 
   return (
-    <div className="min-h-screen bg-vw-bg">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-6 sm:px-6">
-        <BrandLogo variant="full" className="h-16 w-auto" />
-        <div className="flex items-center gap-3">
-          <Link to="/login" className="vw-btn-secondary text-sm">
-            Sign in
-          </Link>
-          <Link to="/register" className="vw-btn-primary text-sm">
-            Start free trial
-          </Link>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-4 pb-20 pt-10 sm:px-6">
-        <section className="max-w-3xl">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-vw-accent">
-            B2B customer service & ticketing
-          </p>
-          <h1 className="mt-4 font-brand text-4xl font-semibold leading-tight text-vw-headline sm:text-5xl">
-            One support desk for email, chat, and every customer conversation
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-vw-muted">
-            Streammeo helps SaaS teams resolve issues faster with a unified queue, SLA
-            tracking, AI-drafted replies, and real-time agent collaboration — built for
-            growing support teams in India and beyond.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/register" className="vw-btn-primary">
-              Create workspace
-            </Link>
-            <Link to="/login" className="vw-btn-secondary">
-              Agent login
-            </Link>
-          </div>
-        </section>
-
-        <section className="mt-20">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-vw-accent">
-            Platform
+    <MarketingShell
+      showHero
+      heroEyebrow="AI customer service & ticketing"
+      heroTitle="One support desk for email, chat, and every customer conversation"
+      heroDescription="Streammeo helps SaaS teams resolve issues faster with a unified queue, SLA tracking, AI-drafted replies, and real-time agent collaboration — built for growing support teams."
+      heroPrimaryCta={{ label: "Start free trial", to: "/register" }}
+      heroSecondaryCta={{ label: "I already have an account", to: "/login" }}
+    >
+      <main className="mx-auto max-w-6xl px-4 pb-20 sm:px-6 lg:px-8">
+        <section className="mt-4 border-t border-vw-border pt-20">
+          <p className="vw-eyebrow">Platform</p>
+          <h2 className="mt-4 max-w-2xl font-brand text-3xl font-semibold tracking-tight text-vw-headline sm:text-4xl">
+            Everything from first contact to resolution
           </h2>
-          <p className="mt-3 max-w-2xl text-vw-muted">
-            Everything your team needs from first contact to resolution — without stitching
-            together five different tools.
+          <p className="mt-4 max-w-2xl text-vw-muted">
+            One platform for your whole support workflow — without stitching together five different
+            tools.
           </p>
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((item) => (
-              <div key={item.title} className="vw-panel p-6">
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map((item, index) => (
+              <div
+                key={item.title}
+                className="vw-panel group p-6 transition-[border-color,transform] duration-vw ease-out-expo hover:-translate-y-0.5 hover:border-vw-accent/30"
+                style={{ animationDelay: `${index * 60}ms` }}
+              >
+                <div className="mb-4 h-1 w-8 rounded-full bg-vw-accent/80 transition-all duration-vw group-hover:w-12" />
                 <h3 className="text-lg font-semibold text-vw-headline">{item.title}</h3>
                 <p className="mt-3 text-sm leading-relaxed text-vw-muted">{item.body}</p>
               </div>
@@ -95,47 +73,60 @@ export function LandingPage(): ReactElement {
           </div>
         </section>
 
-        <section className="mt-20">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-vw-accent">
-            Pricing
+        <section className="mt-24 border-t border-vw-border pt-20">
+          <p className="vw-eyebrow">Pricing</p>
+          <h2 className="mt-4 max-w-xl font-brand text-3xl font-semibold tracking-tight text-vw-headline sm:text-4xl">
+            Plans that scale with your team
           </h2>
-          <p className="mt-3 max-w-2xl text-vw-muted">
-            Start on Starter and upgrade as your team scales. All plans include the agent
-            console, ticket queue, and SLA policies.
+          <p className="mt-4 max-w-2xl text-vw-muted">
+            Start on Starter and upgrade as you grow. All plans include the agent console, ticket
+            queue, and SLA policies.
           </p>
-          <div className="mt-10 grid gap-6 sm:grid-cols-3">
+          <div className="mt-12 grid gap-5 sm:grid-cols-3">
             {PLANS.map((plan) => (
               <div
                 key={plan.name}
-                className={`vw-panel p-6 ${plan.highlight ? "ring-1 ring-vw-accent/40" : ""}`}
+                className={`vw-panel flex flex-col p-6 ${
+                  plan.highlight
+                    ? "relative border-vw-accent/40 bg-gradient-to-b from-vw-accent-surface to-vw-surface ring-1 ring-vw-accent/30"
+                    : ""
+                }`}
               >
                 {plan.highlight ? (
-                  <p className="text-xs font-semibold uppercase tracking-wide text-vw-accent">
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-vw-accent">
                     Most popular
                   </p>
-                ) : null}
+                ) : (
+                  <span className="h-5" aria-hidden />
+                )}
                 <h3 className="mt-1 text-lg font-semibold text-vw-headline">{plan.name}</h3>
-                <p className="mt-2 text-3xl font-semibold text-vw-fg">{plan.price}</p>
-                <p className="mt-3 text-sm text-vw-muted">{plan.detail}</p>
+                <p className="mt-3 font-brand text-4xl font-semibold tracking-tight text-vw-fg">
+                  {plan.price}
+                </p>
+                <p className="mt-4 flex-1 text-sm leading-relaxed text-vw-muted">{plan.detail}</p>
+                <Link
+                  to="/register"
+                  className={`mt-6 w-full text-center ${
+                    plan.highlight ? "vw-btn-primary" : "vw-btn-secondary"
+                  }`}
+                >
+                  Get started
+                </Link>
               </div>
             ))}
           </div>
-          <p className="mt-6 text-sm text-vw-muted">
+          <p className="mt-8 text-sm text-vw-muted">
             Payments processed via Razorpay.{" "}
-            <Link to="/register" className="text-vw-accent hover:text-vw-accent-hover">
+            <Link
+              to="/register"
+              className="font-medium text-vw-accent underline decoration-vw-accent/50 underline-offset-4 hover:text-vw-accent-hover"
+            >
               Create a workspace
             </Link>{" "}
             to see live plan limits in your dashboard.
           </p>
         </section>
       </main>
-
-      <footer className="border-t border-vw-border px-4 py-8 sm:px-6">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-vw-muted">© {new Date().getFullYear()} Streammeo</p>
-          <LegalFooterLinks />
-        </div>
-      </footer>
-    </div>
+    </MarketingShell>
   );
 }

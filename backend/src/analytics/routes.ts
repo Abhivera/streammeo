@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "../db.js";
+import { listAllTickets } from "@streammeo/db";
+import { listCsatRatingsForWorkspace, listChatCsatRatingsForWorkspace } from "@streammeo/db";
 import type { AppConfig } from "../config.js";
 import { createAuthHook } from "../auth/middleware.js";
 
@@ -20,76 +21,56 @@ export async function registerAnalyticsRoutes(
     const startOfWeek = new Date(startOfDay);
     startOfWeek.setDate(startOfWeek.getDate() - 7);
 
-    const [openTickets, ticketsToday, ticketsThisWeek, resolvedTickets, breachedTickets, csatAgg] =
-      await Promise.all([
-        prisma.ticket.count({
-          where: { workspaceId, status: { in: ["new", "open", "pending"] } },
-        }),
-        prisma.ticket.count({
-          where: { workspaceId, createdAt: { gte: startOfDay } },
-        }),
-        prisma.ticket.count({
-          where: { workspaceId, createdAt: { gte: startOfWeek } },
-        }),
-        prisma.ticket.count({
-          where: { workspaceId, status: { in: ["resolved", "closed"] } },
-        }),
-        prisma.ticket.count({
-          where: { workspaceId, slaBreached: true, status: { in: ["new", "open", "pending"] } },
-        }),
-        prisma.csatSurvey.aggregate({
-          where: { ticket: { workspaceId }, rating: { not: null } },
-          _avg: { rating: true },
-          _count: { _all: true },
-        }),
-      ]);
+    const allTickets = await listAllTickets(workspaceId);
+    const openStatuses = new Set(["new", "open", "pending"]);
+    const resolvedStatuses = new Set(["resolved", "closed"]);
 
-    const totalTickets = await prisma.ticket.count({ where: { workspaceId } });
+    const openTickets = allTickets.filter((t) => openStatuses.has(t.status)).length;
+    const ticketsToday = allTickets.filter((t) => new Date(t.createdAt) >= startOfDay).length;
+    const ticketsThisWeek = allTickets.filter((t) => new Date(t.createdAt) >= startOfWeek).length;
+    const resolvedTickets = allTickets.filter((t) => resolvedStatuses.has(t.status)).length;
+    const breachedTickets = allTickets.filter(
+      (t) => t.slaBreached && openStatuses.has(t.status),
+    ).length;
+
+    const ticketCsat = await listCsatRatingsForWorkspace(workspaceId);
+    const chatCsat = await listChatCsatRatingsForWorkspace(workspaceId);
+    const csatRatings = [...ticketCsat, ...chatCsat];
+    const csatAvgScore =
+      csatRatings.length > 0
+        ? Math.round((csatRatings.reduce((s, r) => s + r, 0) / csatRatings.length) * 10) / 10
+        : null;
+
+    const totalTickets = allTickets.length;
     const resolutionRate =
       totalTickets > 0 ? Math.round((resolvedTickets / totalTickets) * 100) : 0;
 
-    const resolvedWithTimes = await prisma.ticket.findMany({
-      where: { workspaceId, resolvedAt: { not: null } },
-      select: { createdAt: true, resolvedAt: true },
-      take: 500,
-      orderBy: { resolvedAt: "desc" },
-    });
+    const resolvedWithTimes = allTickets
+      .filter((t) => t.resolvedAt)
+      .sort((a, b) => (b.resolvedAt ?? "").localeCompare(a.resolvedAt ?? ""))
+      .slice(0, 500);
 
     const avgResolutionHours =
       resolvedWithTimes.length > 0
         ? resolvedWithTimes.reduce((sum, t) => {
             const hours =
-              ((t.resolvedAt!.getTime() - t.createdAt.getTime()) / 3_600_000);
+              (new Date(t.resolvedAt!).getTime() - new Date(t.createdAt).getTime()) / 3_600_000;
             return sum + hours;
           }, 0) / resolvedWithTimes.length
         : 0;
 
-    const byStatus = await prisma.ticket.groupBy({
-      by: ["status"],
-      where: { workspaceId },
-      _count: { _all: true },
-    });
+    const statusCounts = new Map<string, number>();
+    const priorityCounts = new Map<string, number>();
+    for (const t of allTickets) {
+      statusCounts.set(t.status, (statusCounts.get(t.status) ?? 0) + 1);
+      if (openStatuses.has(t.status)) {
+        priorityCounts.set(t.priority, (priorityCounts.get(t.priority) ?? 0) + 1);
+      }
+    }
 
-    const byPriority = await prisma.ticket.groupBy({
-      by: ["priority"],
-      where: { workspaceId, status: { in: ["new", "open", "pending"] } },
-      _count: { _all: true },
-    });
-
-    const recentTickets = await prisma.ticket.findMany({
-      where: { workspaceId },
-      orderBy: { updatedAt: "desc" },
-      take: 5,
-      select: {
-        id: true,
-        number: true,
-        subject: true,
-        status: true,
-        priority: true,
-        updatedAt: true,
-        slaBreached: true,
-      },
-    });
+    const recentTickets = [...allTickets]
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, 5);
 
     return {
       openTickets,
@@ -99,15 +80,18 @@ export async function registerAnalyticsRoutes(
       resolutionRate,
       slaBreaches: breachedTickets,
       avgResolutionHours: Math.round(avgResolutionHours * 10) / 10,
-      csatAvgScore: csatAgg._avg.rating
-        ? Math.round(csatAgg._avg.rating * 10) / 10
-        : null,
-      csatResponses: csatAgg._count._all,
-      byStatus: byStatus.map((s) => ({ status: s.status, count: s._count._all })),
-      byPriority: byPriority.map((p) => ({ priority: p.priority, count: p._count._all })),
+      csatAvgScore,
+      csatResponses: csatRatings.length,
+      byStatus: [...statusCounts.entries()].map(([status, count]) => ({ status, count })),
+      byPriority: [...priorityCounts.entries()].map(([priority, count]) => ({ priority, count })),
       recentTickets: recentTickets.map((t) => ({
-        ...t,
-        updatedAt: t.updatedAt.toISOString(),
+        id: t.id,
+        number: t.number,
+        subject: t.subject,
+        status: t.status,
+        priority: t.priority,
+        updatedAt: t.updatedAt,
+        slaBreached: t.slaBreached,
       })),
     };
   });

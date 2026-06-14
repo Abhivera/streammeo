@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { PageHeader } from "../components/PageHeader";
 import { usePageTitle } from "../hooks/usePageTitle";
 import {
@@ -11,12 +11,15 @@ import {
   verifyBillingPayment,
 } from "../api/client";
 import { openRazorpayCheckout } from "../billing/razorpay";
+import { RAZORPAY_KEY_ID } from "../config";
+import { formatAiRepliesPlanDetail, formatUsageLimit } from "../lib/teamUi";
 import { useAuthStore } from "../store/auth";
 import type { BillingPlan } from "../types";
 
 export function SettingsPage(): ReactElement {
   usePageTitle("Settings");
   const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === "admin";
   const workspace = useAuthStore((s) => s.workspace);
   const setWorkspace = useAuthStore((s) => s.setWorkspace);
   const [usage, setUsage] = useState<{
@@ -28,25 +31,24 @@ export function SettingsPage(): ReactElement {
     aiRepliesLimit?: number;
   } | null>(null);
   const [plans, setPlans] = useState<BillingPlan[]>([]);
-  const [razorpayKeyId, setRazorpayKeyId] = useState<string | null>(
-    import.meta.env.VITE_RAZORPAY_KEY_ID ?? null,
-  );
+  const [razorpayKeyId, setRazorpayKeyId] = useState<string | null>(RAZORPAY_KEY_ID);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const billingNotice = searchParams.get("billing");
 
-  const refreshUsage = () => {
+  const refreshUsage = useCallback(() => {
     void fetchBillingUsage().then(setUsage);
     void fetchMe().then((data) => setWorkspace(data.workspace));
-  };
+  }, [setWorkspace]);
 
   useEffect(() => {
     refreshUsage();
+    if (!isAdmin) return;
     void fetchBillingPlans().then((data) => {
       setPlans(data.plans);
       if (data.razorpayKeyId) setRazorpayKeyId(data.razorpayKeyId);
     });
-  }, [setWorkspace]);
+  }, [isAdmin, refreshUsage]);
 
   const pct =
     usage && usage.ticketsLimit > 0 && usage.ticketsLimit < Number.MAX_SAFE_INTEGER
@@ -89,16 +91,11 @@ export function SettingsPage(): ReactElement {
     }
   };
 
-  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:3001";
-  const widgetSnippet = workspace?.apiKey
-    ? `<script src="${window.location.origin}/chat-widget.js" data-api-key="${workspace.apiKey}" data-api-url="${apiBase}"></script>`
-    : null;
-
   return (
     <div className="space-y-8">
       <PageHeader
         title="Workspace & billing"
-        description="View your workspace profile, monitor plan usage, upgrade via Razorpay, and copy the live chat embed snippet."
+        description="View your workspace profile, monitor plan usage, and upgrade via Razorpay."
       />
 
       {billingNotice === "success" ? (
@@ -131,7 +128,6 @@ export function SettingsPage(): ReactElement {
 
       <section className="vw-panel space-y-4 p-6">
         <h2 className="text-lg font-medium text-vw-headline">Usage & billing</h2>
-        <p className="text-xs text-vw-muted">Payments processed securely via Razorpay (INR).</p>
         {usage ? (
           <>
             <p className="text-sm text-vw-muted">
@@ -141,8 +137,7 @@ export function SettingsPage(): ReactElement {
               <div className="mb-2 flex justify-between text-sm">
                 <span className="text-vw-muted">Tickets this month</span>
                 <span className="text-vw-fg">
-                  {usage.ticketsUsed} /{" "}
-                  {usage.ticketsLimit >= Number.MAX_SAFE_INTEGER ? "∞" : usage.ticketsLimit}
+                  {usage.ticketsUsed} / {formatUsageLimit(usage.ticketsLimit)}
                 </span>
               </div>
               {usage.ticketsLimit < Number.MAX_SAFE_INTEGER ? (
@@ -154,9 +149,10 @@ export function SettingsPage(): ReactElement {
                 </div>
               ) : null}
             </div>
-            {usage.aiRepliesLimit !== undefined && usage.aiRepliesLimit > 0 ? (
+            {usage.aiRepliesLimit !== undefined &&
+            (usage.aiRepliesLimit > 0 || (usage.aiRepliesUsed ?? 0) > 0) ? (
               <p className="text-sm text-vw-muted">
-                AI replies: {usage.aiRepliesUsed ?? 0} / {usage.aiRepliesLimit}
+                AI replies: {usage.aiRepliesUsed ?? 0} / {formatUsageLimit(usage.aiRepliesLimit)}
               </p>
             ) : null}
           </>
@@ -164,42 +160,51 @@ export function SettingsPage(): ReactElement {
           <p className="text-sm text-vw-muted">Loading usage…</p>
         )}
 
-        <div className="grid gap-3 pt-2 sm:grid-cols-3">
-          {plans.map((plan) => (
-            <div key={plan.id} className="rounded-lg border border-vw-border p-4">
-              <p className="font-medium text-vw-headline">{plan.name}</p>
-              <p className="mt-1 text-2xl font-semibold text-vw-fg">{plan.priceDisplay}</p>
-              <p className="mt-2 text-xs text-vw-muted">
-                {plan.agentsLimit} agents · {plan.aiRepliesLimit || 0} AI replies/mo
-              </p>
-              {usage?.plan !== plan.id ? (
-                <button
-                  type="button"
-                  className="vw-btn-secondary mt-3 w-full text-sm"
-                  disabled={checkoutLoading === plan.id}
-                  onClick={() => void handleUpgrade(plan.id)}
-                >
-                  {checkoutLoading === plan.id ? "Opening checkout…" : "Upgrade"}
-                </button>
-              ) : (
-                <p className="mt-3 text-xs text-vw-success">Current plan</p>
-              )}
+        {isAdmin ? (
+          <>
+            <p className="text-xs text-vw-muted">Payments processed securely via Razorpay (INR).</p>
+            <div className="grid gap-3 pt-2 sm:grid-cols-2 lg:grid-cols-3">
+              {plans.map((plan) => (
+                <div key={plan.id} className="rounded-lg border border-vw-border p-4">
+                  <p className="font-medium text-vw-headline">{plan.name}</p>
+                  <p className="mt-1 text-2xl font-semibold text-vw-fg">{plan.priceDisplay}</p>
+                  <p className="mt-2 text-xs text-vw-muted">
+                    {plan.agentsLimit} agents · {formatAiRepliesPlanDetail(plan.aiRepliesLimit)}
+                  </p>
+                  {usage?.plan !== plan.id ? (
+                    <button
+                      type="button"
+                      className="vw-btn-secondary mt-3 w-full text-sm"
+                      disabled={checkoutLoading === plan.id}
+                      onClick={() => void handleUpgrade(plan.id)}
+                    >
+                      {checkoutLoading === plan.id ? "Opening checkout…" : "Upgrade"}
+                    </button>
+                  ) : (
+                    <p className="mt-3 text-xs text-vw-success">Current plan</p>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <p className="text-sm text-vw-muted">
+            Only workspace admins can upgrade plans or manage billing.
+          </p>
+        )}
       </section>
 
-      {widgetSnippet ? (
-        <section className="vw-panel space-y-3 p-6">
-          <h2 className="text-lg font-medium text-vw-headline">Live chat widget</h2>
-          <p className="text-sm text-vw-muted">
-            Add real-time chat to your website. Paste this snippet before{" "}
-            <code className="text-vw-fg-soft">&lt;/body&gt;</code> — visitors can start a
-            session that converts to a ticket when they need agent help.
-          </p>
-          <pre className="overflow-x-auto rounded-lg bg-vw-elevated p-4 text-xs text-vw-fg-soft">
-            {widgetSnippet}
-          </pre>
+      {workspace?.apiKey ? (
+        <section className="vw-panel flex flex-wrap items-center justify-between gap-4 p-6">
+          <div>
+            <h2 className="text-lg font-medium text-vw-headline">Live chat widget</h2>
+            <p className="mt-1 text-sm text-vw-muted">
+              Customize colors, copy, and launcher style — then copy the embed snippet for your site.
+            </p>
+          </div>
+          <Link to="/settings/live-widget" className="vw-btn-primary shrink-0 text-sm">
+            Open widget settings
+          </Link>
         </section>
       ) : null}
     </div>

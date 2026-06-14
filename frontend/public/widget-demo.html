@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acme Support — Demo site with Streammeo chat</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: #1a1a1a;
+        background: linear-gradient(160deg, #f8f9fa 0%, #eef1f5 100%);
+        min-height: 100vh;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 2rem;
+        background: #fff;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .logo {
+        font-weight: 700;
+        font-size: 1.25rem;
+        color: #ff1e2d;
+      }
+
+      nav a {
+        margin-left: 1.5rem;
+        color: #4b5563;
+        text-decoration: none;
+        font-size: 0.95rem;
+      }
+
+      nav a:hover {
+        color: #111;
+      }
+
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 3rem 1.5rem 6rem;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        background: #fff3f3;
+        color: #ff1e2d;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 1rem 0 0.75rem;
+        font-size: clamp(1.75rem, 4vw, 2.25rem);
+        line-height: 1.2;
+      }
+
+      p {
+        line-height: 1.65;
+        color: #4b5563;
+      }
+
+      .card {
+        margin-top: 2rem;
+        padding: 1.5rem;
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+      }
+
+      .card h2 {
+        margin: 0 0 0.75rem;
+        font-size: 1.1rem;
+      }
+
+      .card ol {
+        margin: 0;
+        padding-left: 1.25rem;
+        color: #374151;
+        line-height: 1.8;
+      }
+
+      .docs-link {
+        display: inline-block;
+        margin-top: 1rem;
+        color: #ff1e2d;
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .docs-link:hover {
+        text-decoration: underline;
+      }
+
+      .setup-hint {
+        margin: 0 0 1rem;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        background: #fff7ed;
+        color: #9a3412;
+        font-size: 0.9rem;
+      }
+
+      .setup-field {
+        display: block;
+        margin: 1rem 0 0.75rem;
+      }
+
+      .setup-field span {
+        display: block;
+        margin-bottom: 0.35rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #374151;
+      }
+
+      .setup-field input {
+        width: 100%;
+        padding: 0.65rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font: inherit;
+      }
+
+      .load-btn {
+        padding: 0.65rem 1rem;
+        border: 0;
+        border-radius: 8px;
+        background: #ff1e2d;
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .load-btn:hover {
+        background: #e01825;
+      }
+
+      footer {
+        text-align: center;
+        padding: 2rem;
+        font-size: 0.8rem;
+        color: #9ca3af;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo">Acme Support</div>
+      <nav>
+        <a href="/help">Customer help</a>
+        <a href="/help/live-chat">Using chat</a>
+        <a href="/docs/live-chat-widget">Team embed guide</a>
+      </nav>
+    </header>
+
+    <main>
+      <span class="badge">Widget demo</span>
+      <h1>Welcome to our demo customer website</h1>
+      <p>
+        This page simulates a merchant site with the Streammeo live chat widget embedded.
+        Click the chat bubble in the bottom-right corner to start a session — your support
+        team can reply from Live chat in the agent console and convert the conversation to a
+        ticket when needed.
+      </p>
+
+      <div class="card">
+        <h2>Try the widget</h2>
+        <ol>
+          <li>Copy your workspace API key from <strong>Settings → Workspace & billing</strong> (admin login).</li>
+          <li>Open this page with <code>?apiKey=YOUR_KEY</code> in the URL, or paste the key below.</li>
+          <li>Click the chat bubble and send a message as a visitor would.</li>
+          <li>Open <strong>Live chat</strong> in your agent console to see the session.</li>
+          <li>Reply in real time, then use <strong>Convert to ticket</strong> if the visitor needs follow-up.</li>
+        </ol>
+        <p id="widget-setup" class="setup-hint" hidden></p>
+        <label class="setup-field">
+          <span>Workspace API key</span>
+          <input id="api-key-input" type="text" placeholder="Paste API key from Settings" autocomplete="off" />
+        </label>
+        <button id="load-widget-btn" type="button" class="load-btn">Load widget</button>
+        <a class="docs-link" href="/help/live-chat">Customer guide: using chat →</a>
+        <a class="docs-link" href="/docs/live-chat-widget" style="margin-left: 1rem">Team: embed widget →</a>
+      </div>
+    </main>
+
+    <footer>Streammeo live chat widget demo</footer>
+
+    <script>
+      (function () {
+        const params = new URLSearchParams(window.location.search);
+        const defaultApiUrl = "http://localhost:3001";
+        const input = document.getElementById("api-key-input");
+        const setupHint = document.getElementById("widget-setup");
+        const loadBtn = document.getElementById("load-widget-btn");
+        let widgetScript = null;
+
+        function showHint(message) {
+          setupHint.textContent = message;
+          setupHint.hidden = false;
+        }
+
+        function loadWidget(apiKey) {
+          const trimmed = apiKey.trim();
+          if (!trimmed || trimmed === "REPLACE_WITH_YOUR_WORKSPACE_API_KEY") {
+            showHint("Add your workspace API key from Settings → Workspace & billing, then click Load widget.");
+            return;
+          }
+
+          widgetScript?.remove();
+          document.getElementById("streammeo-chat-root")?.remove();
+
+          widgetScript = document.createElement("script");
+          widgetScript.src = "/chat-widget.js";
+          widgetScript.setAttribute("data-api-key", trimmed);
+          widgetScript.setAttribute("data-api-url", params.get("apiUrl") || defaultApiUrl);
+          document.body.appendChild(widgetScript);
+
+          const next = new URL(window.location.href);
+          next.searchParams.set("apiKey", trimmed);
+          window.history.replaceState({}, "", next);
+          setupHint.hidden = true;
+        }
+
+        input.value = params.get("apiKey") || "";
+        loadBtn.addEventListener("click", () => loadWidget(input.value));
+
+        if (params.get("apiKey")) {
+          loadWidget(params.get("apiKey"));
+        } else {
+          showHint("Paste your API key below or open this page as /widget-demo.html?apiKey=YOUR_KEY");
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -32,7 +32,7 @@ export function createAuthHook(config: AppConfig) {
       const decoded = jwt.verify(token, config.JWT_SECRET) as JwtPayload;
       request.auth = decoded;
     } catch {
-      reply.code(401).send({ error: "Invalid token" });
+      return reply.code(401).send({ error: "Invalid token" });
     }
   };
 }
@@ -44,7 +44,7 @@ export function requireRole(...roles: JwtPayload["role"][]) {
       return;
     }
     if (!roles.includes(request.auth.role)) {
-      reply.code(403).send({ error: "Forbidden" });
+      return reply.code(403).send({ error: "Forbidden" });
     }
   };
 }

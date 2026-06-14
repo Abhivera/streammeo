@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { AppConfig } from "../config.js";
-import { prisma } from "../db.js";
+import { findInboxByEmail } from "@streammeo/db";
+import { createTicketComment } from "@streammeo/db";
 import { publishTicketEvent } from "../realtime/appsync.js";
 import { createTicket } from "../tickets/service.js";
 
@@ -33,11 +34,7 @@ export async function handleInboundEmailWebhook(
     return { status: 400, body: { error: "Invalid payload" } };
   }
 
-  const inbox = await prisma.inbox.findFirst({
-    where: { email: parsed.data.to },
-    include: { workspace: true },
-  });
-
+  const inbox = await findInboxByEmail(parsed.data.to);
   if (!inbox) {
     return { status: 404, body: { error: "Inbox not found" } };
   }
@@ -51,14 +48,16 @@ export async function handleInboundEmailWebhook(
     requesterName: parsed.data.fromName,
   });
 
+  if (!ticket) {
+    return { status: 500, body: { error: "Failed to create ticket" } };
+  }
+
   if (inbox.autoResponderEnabled && inbox.autoResponderMessage) {
-    await prisma.ticketComment.create({
-      data: {
-        ticketId: ticket.id,
-        body: inbox.autoResponderMessage,
-        visibility: "public",
-        isEmail: true,
-      },
+    await createTicketComment({
+      ticketId: ticket.id,
+      body: inbox.autoResponderMessage,
+      visibility: "public",
+      isEmail: true,
     });
   }
 

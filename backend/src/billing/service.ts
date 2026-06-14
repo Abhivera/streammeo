@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { PLANS, type PlanId } from "@streammeo/shared";
-import { prisma } from "../db.js";
+import { getWorkspaceById, updateWorkspace } from "@streammeo/db";
 
 export type RazorpayOrder = {
   id: string;
@@ -51,12 +51,11 @@ export function verifyRazorpayWebhookSignature(
 
 export async function applyPlanUpgrade(workspaceId: string, planId: PlanId): Promise<void> {
   const plan = PLANS[planId];
-  await prisma.workspace.update({
-    where: { id: workspaceId },
-    data: {
-      plan: planId,
-      ticketsLimit: plan.ticketsLimit,
-      aiRepliesLimit: plan.aiRepliesLimit,
-    },
+  const ws = await getWorkspaceById(workspaceId);
+  if (!ws) return;
+  await updateWorkspace(workspaceId, {
+    plan: planId,
+    ticketsLimit: plan.ticketsLimit,
+    aiRepliesLimit: plan.aiRepliesLimit,
   });
 }

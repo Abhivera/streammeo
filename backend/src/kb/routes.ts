@@ -1,8 +1,19 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import {
+  createKbArticle,
+  createKbCategory,
+  deleteKbArticle,
+  getKbArticle,
+  getKbCategoryName,
+  getWorkspaceBySlug,
+  listKbArticles,
+  listKbCategories,
+  searchPublicKbArticles,
+  updateKbArticle,
+} from "@streammeo/db";
 import type { AppConfig } from "../config.js";
 import { createAuthHook, requireRole } from "../auth/middleware.js";
-import { prisma } from "../db.js";
 import { slugify } from "@streammeo/shared";
 
 const categorySchema = z.object({
@@ -27,19 +38,8 @@ export async function registerKbRoutes(app: FastifyInstance, config: AppConfig):
     const authPayload = request.auth;
     if (!authPayload) return reply.code(401).send({ error: "Unauthorized" });
 
-    const items = await prisma.kbCategory.findMany({
-      where: { workspaceId: authPayload.workspaceId },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      include: { _count: { select: { articles: true } } },
-    });
-    return {
-      items: items.map((c) => ({
-        id: c.id,
-        name: c.name,
-        sortOrder: c.sortOrder,
-        articleCount: c._count.articles,
-      })),
-    };
+    const items = await listKbCategories(authPayload.workspaceId);
+    return { items };
   });
 
   app.post("/api/v1/kb/categories", { preHandler: adminOnly }, async (request, reply) => {
@@ -49,13 +49,7 @@ export async function registerKbRoutes(app: FastifyInstance, config: AppConfig):
     const body = categorySchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Invalid input" });
 
-    const category = await prisma.kbCategory.create({
-      data: {
-        workspaceId: authPayload.workspaceId,
-        name: body.data.name,
-        sortOrder: body.data.sortOrder ?? 0,
-      },
-    });
+    const category = await createKbCategory(authPayload.workspaceId, body.data);
     return reply.code(201).send(category);
   });
 
@@ -63,12 +57,16 @@ export async function registerKbRoutes(app: FastifyInstance, config: AppConfig):
     const authPayload = request.auth;
     if (!authPayload) return reply.code(401).send({ error: "Unauthorized" });
 
-    const items = await prisma.kbArticle.findMany({
-      where: { workspaceId: authPayload.workspaceId },
-      orderBy: { updatedAt: "desc" },
-      include: { category: { select: { id: true, name: true } } },
-    });
-    return { items };
+    const items = await listKbArticles(authPayload.workspaceId);
+    const enriched = await Promise.all(
+      items.map(async (a) => ({
+        ...a,
+        category: a.categoryId
+          ? { id: a.categoryId, name: await getKbCategoryName(authPayload.workspaceId, a.categoryId) }
+          : null,
+      })),
+    );
+    return { items: enriched };
   });
 
   app.post("/api/v1/kb/articles", { preHandler: adminOnly }, async (request, reply) => {
@@ -79,16 +77,13 @@ export async function registerKbRoutes(app: FastifyInstance, config: AppConfig):
     if (!body.success) return reply.code(400).send({ error: "Invalid input" });
 
     const slug = body.data.slug ?? slugify(body.data.title);
-    const article = await prisma.kbArticle.create({
-      data: {
-        workspaceId: authPayload.workspaceId,
-        title: body.data.title,
-        slug,
-        content: body.data.content,
-        categoryId: body.data.categoryId ?? undefined,
-        visibility: body.data.visibility ?? "public",
-        publishedAt: body.data.published !== false ? new Date() : null,
-      },
+    const article = await createKbArticle(authPayload.workspaceId, {
+      title: body.data.title,
+      slug,
+      content: body.data.content,
+      categoryId: body.data.categoryId ?? null,
+      visibility: body.data.visibility,
+      publishedAt: body.data.published !== false ? new Date().toISOString() : null,
     });
     return reply.code(201).send(article);
   });
@@ -101,22 +96,17 @@ export async function registerKbRoutes(app: FastifyInstance, config: AppConfig):
     const body = articleSchema.partial().safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Invalid input" });
 
-    const existing = await prisma.kbArticle.findFirst({
-      where: { id, workspaceId: authPayload.workspaceId },
-    });
+    const existing = await getKbArticle(authPayload.workspaceId, id);
     if (!existing) return reply.code(404).send({ error: "Article not found" });
 
-    const article = await prisma.kbArticle.update({
-      where: { id },
-      data: {
-        ...(body.data.title ? { title: body.data.title } : {}),
-        ...(body.data.slug ? { slug: body.data.slug } : {}),
-        ...(body.data.content ? { content: body.data.content } : {}),
-        ...(body.data.categoryId !== undefined ? { categoryId: body.data.categoryId } : {}),
-        ...(body.data.visibility ? { visibility: body.data.visibility } : {}),
-        ...(body.data.published === true ? { publishedAt: new Date() } : {}),
-        ...(body.data.published === false ? { publishedAt: null } : {}),
-      },
+    const article = await updateKbArticle(authPayload.workspaceId, id, {
+      ...(body.data.title ? { title: body.data.title } : {}),
+      ...(body.data.slug ? { slug: body.data.slug } : {}),
+      ...(body.data.content ? { content: body.data.content } : {}),
+      ...(body.data.categoryId !== undefined ? { categoryId: body.data.categoryId } : {}),
+      ...(body.data.visibility ? { visibility: body.data.visibility } : {}),
+      ...(body.data.published === true ? { publishedAt: new Date().toISOString() } : {}),
+      ...(body.data.published === false ? { publishedAt: null } : {}),
     });
     return article;
   });
@@ -126,51 +116,32 @@ export async function registerKbRoutes(app: FastifyInstance, config: AppConfig):
     if (!authPayload) return reply.code(401).send({ error: "Unauthorized" });
 
     const { id } = request.params as { id: string };
-    const existing = await prisma.kbArticle.findFirst({
-      where: { id, workspaceId: authPayload.workspaceId },
-    });
-    if (!existing) return reply.code(404).send({ error: "Article not found" });
-
-    await prisma.kbArticle.delete({ where: { id } });
+    const deleted = await deleteKbArticle(authPayload.workspaceId, id);
+    if (!deleted) return reply.code(404).send({ error: "Article not found" });
     return { ok: true };
   });
 
-  // Public portal KB search (by workspace slug)
   app.get("/api/v1/portal/:slug/kb", async (request, reply) => {
     const { slug } = request.params as { slug: string };
     const q = (request.query as { q?: string }).q?.toLowerCase();
 
-    const workspace = await prisma.workspace.findUnique({ where: { slug } });
+    const workspace = await getWorkspaceBySlug(slug);
     if (!workspace) return reply.code(404).send({ error: "Workspace not found" });
 
-    const articles = await prisma.kbArticle.findMany({
-      where: {
-        workspaceId: workspace.id,
-        visibility: "public",
-        publishedAt: { not: null },
-        ...(q
-          ? {
-              OR: [
-                { title: { contains: q, mode: "insensitive" } },
-                { content: { contains: q, mode: "insensitive" } },
-              ],
-            }
-          : {}),
-      },
-      select: {
-        id: true,
-        title: true,
-        slug: true,
-        content: true,
-        helpfulYes: true,
-        helpfulNo: true,
-        category: { select: { name: true } },
-      },
-      take: 20,
-      orderBy: { updatedAt: "desc" },
-    });
+    const articles = await searchPublicKbArticles(workspace.id, q);
+    const enriched = await Promise.all(
+      articles.map(async (a) => ({
+        id: a.id,
+        title: a.title,
+        slug: a.slug,
+        content: a.content,
+        helpfulYes: a.helpfulYes,
+        helpfulNo: a.helpfulNo,
+        category: { name: await getKbCategoryName(workspace.id, a.categoryId) },
+      })),
+    );
 
-    return { workspace: { name: workspace.name, slug: workspace.slug }, articles };
+    return { workspace: { name: workspace.name, slug: workspace.slug }, articles: enriched };
   });
 
   app.post("/api/v1/portal/:slug/kb/:articleId/feedback", async (request, reply) => {
@@ -178,17 +149,17 @@ export async function registerKbRoutes(app: FastifyInstance, config: AppConfig):
     const body = z.object({ helpful: z.boolean() }).safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Invalid input" });
 
-    const workspace = await prisma.workspace.findUnique({ where: { slug } });
+    const workspace = await getWorkspaceBySlug(slug);
     if (!workspace) return reply.code(404).send({ error: "Workspace not found" });
 
-    const article = await prisma.kbArticle.findFirst({
-      where: { id: articleId, workspaceId: workspace.id, visibility: "public" },
-    });
-    if (!article) return reply.code(404).send({ error: "Article not found" });
+    const article = await getKbArticle(workspace.id, articleId);
+    if (!article || article.visibility !== "public") {
+      return reply.code(404).send({ error: "Article not found" });
+    }
 
-    await prisma.kbArticle.update({
-      where: { id: articleId },
-      data: body.data.helpful ? { helpfulYes: { increment: 1 } } : { helpfulNo: { increment: 1 } },
+    await updateKbArticle(workspace.id, articleId, {
+      helpfulYes: body.data.helpful ? article.helpfulYes + 1 : article.helpfulYes,
+      helpfulNo: body.data.helpful ? article.helpfulNo : article.helpfulNo + 1,
     });
     return { ok: true };
   });

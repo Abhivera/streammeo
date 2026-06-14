@@ -1,20 +1,41 @@
 import { z } from "zod";
 
+function optionalString() {
+  return z.preprocess(
+    (val) => (typeof val === "string" && val.trim() === "" ? undefined : val),
+    z.string().optional(),
+  );
+}
+
+function optionalUrl() {
+  return z.preprocess(
+    (val) => (typeof val === "string" && val.trim() === "" ? undefined : val),
+    z.string().url().optional(),
+  );
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().default(3001),
   FRONTEND_URL: z.string().url().default("http://localhost:5173"),
+  /** Comma-separated embed origins, or * for any (chat widget on customer sites). */
+  WIDGET_ALLOWED_ORIGINS: optionalString(),
   JWT_SECRET: z.string().min(16),
-  DATABASE_URL: z.string().url(),
+  DYNAMODB_TABLE_NAME: z.string().default("streammeo"),
+  DYNAMODB_ENDPOINT: optionalString(),
   REDIS_URL: z.string().default("redis://localhost:6379"),
-  BREVO_API_KEY: z.string().optional(),
-  BREVO_WEBHOOK_SECRET: z.string().optional(),
-  RAZORPAY_KEY_ID: z.string().optional(),
-  RAZORPAY_KEY_SECRET: z.string().optional(),
-  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
-  ANTHROPIC_API_KEY: z.string().optional(),
-  APPSYNC_GRAPHQL_URL: z.string().url().optional(),
-  APPSYNC_API_KEY: z.string().optional(),
+  BREVO_API_KEY: optionalString(),
+  BREVO_WEBHOOK_SECRET: optionalString(),
+  RAZORPAY_KEY_ID: optionalString(),
+  RAZORPAY_KEY_SECRET: optionalString(),
+  RAZORPAY_WEBHOOK_SECRET: optionalString(),
+  ANTHROPIC_API_KEY: optionalString(),
+  APPSYNC_GRAPHQL_URL: optionalUrl(),
+  APPSYNC_API_KEY: optionalString(),
+  FIREBASE_SERVICE_ACCOUNT_JSON: optionalString(),
+  UPLOADS_BUCKET: optionalString(),
+  UPLOADS_CDN_URL: optionalUrl(),
+  EMAIL_QUEUE_URL: optionalUrl(),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

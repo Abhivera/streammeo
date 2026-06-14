@@ -1,31 +1,20 @@
 import type { ReactElement } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PageHeader } from "../components/PageHeader";
+import { PanelState } from "../components/PanelState";
 import { usePageTitle } from "../hooks/usePageTitle";
+import { useAsyncData } from "../hooks/useAsyncData";
 import {
   createCannedResponse,
   deleteCannedResponse,
   fetchCannedResponses,
 } from "../api/client";
-import type { CannedResponse } from "../types";
 
 export function CannedResponsesPage(): ReactElement {
   usePageTitle("Canned responses");
-  const [items, setItems] = useState<CannedResponse[]>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  const load = () => {
-    setLoading(true);
-    fetchCannedResponses()
-      .then(setItems)
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
+  const { data: items, loading, reload } = useAsyncData(() => fetchCannedResponses(), []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,12 +22,12 @@ export function CannedResponsesPage(): ReactElement {
     await createCannedResponse(title.trim(), body.trim());
     setTitle("");
     setBody("");
-    load();
+    reload();
   };
 
   const handleDelete = async (id: string) => {
     await deleteCannedResponse(id);
-    load();
+    reload();
   };
 
   return (
@@ -81,21 +70,21 @@ export function CannedResponsesPage(): ReactElement {
       </form>
 
       <div className="vw-panel overflow-hidden">
-        {loading ? (
-          <p className="p-6 text-vw-muted">Loading…</p>
-        ) : items.length === 0 ? (
-          <p className="p-6 text-vw-muted">No canned responses yet.</p>
-        ) : (
+        <PanelState
+          loading={loading}
+          empty={!items?.length}
+          emptyMessage="No canned responses yet."
+        >
           <ul className="divide-y divide-vw-border-faint">
-            {items.map((item) => (
-              <li key={item.id} className="flex items-start justify-between gap-4 p-5">
-                <div>
+            {items?.map((item) => (
+              <li key={item.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-vw-headline">{item.title}</p>
                   <p className="mt-2 whitespace-pre-wrap text-sm text-vw-fg-soft">{item.body}</p>
                 </div>
                 <button
                   type="button"
-                  className="text-sm text-vw-danger hover:underline"
+                  className="shrink-0 self-start text-sm text-vw-danger hover:underline sm:self-center"
                   onClick={() => void handleDelete(item.id)}
                 >
                   Delete
@@ -103,7 +92,7 @@ export function CannedResponsesPage(): ReactElement {
               </li>
             ))}
           </ul>
-        )}
+        </PanelState>
       </div>
     </div>
   );

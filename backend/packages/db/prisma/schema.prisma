@@ -41,16 +41,30 @@ enum InboxChannel {
 }
 
 model User {
-  id              String            @id @default(cuid())
-  email           String            @unique
-  password        String
+  id              String               @id @default(cuid())
+  email           String               @unique
+  password        String?
   name            String?
-  firebaseUid     String?           @unique
-  createdAt       DateTime          @default(now())
+  firebaseUid     String?              @unique
+  createdAt       DateTime             @default(now())
   memberships     WorkspaceMember[]
-  assignedTickets Ticket[]          @relation("AssignedAgent")
+  assignedTickets Ticket[]             @relation("AssignedAgent")
+  assignedChats   ChatSession[]        @relation("ChatAgent")
   comments        TicketComment[]
   auditLogs       AuditLog[]
+  passwordResets  PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum ArticleVisibility {
@@ -280,18 +294,20 @@ model PortalToken {
 }
 
 model ChatSession {
-  id           String            @id @default(cuid())
-  workspaceId  String
-  ticketId     String?           @unique
-  visitorId    String
-  visitorEmail String?
-  visitorName  String?
-  status       ChatSessionStatus @default(active)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  workspace    Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  ticket       Ticket?           @relation(fields: [ticketId], references: [id])
-  messages     ChatMessage[]
+  id              String            @id @default(cuid())
+  workspaceId     String
+  ticketId        String?           @unique
+  visitorId       String
+  visitorEmail    String?
+  visitorName     String?
+  assignedAgentId String?
+  status          ChatSessionStatus @default(active)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ticket          Ticket?           @relation(fields: [ticketId], references: [id])
+  assignedAgent   User?             @relation("ChatAgent", fields: [assignedAgentId], references: [id])
+  messages        ChatMessage[]
 
   @@index([workspaceId, status])
 }

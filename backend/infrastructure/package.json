@@ -5,21 +5,26 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "synth": "cdk synth --outputs-file cdk-outputs.json",
-    "deploy": "cdk deploy --all --require-approval never --outputs-file cdk-outputs.json",
-    "destroy": "cdk destroy --all --force",
-    "bootstrap": "cdk bootstrap"
+    "prepare:assets": "node scripts/predeploy.mjs",
+    "predeploy": "npm run prepare:assets",
+    "presynth": "npm run prepare:assets",
+    "prediff": "npm run prepare:assets",
+    "bootstrap": "node scripts/run-cdk.mjs bootstrap",
+    "synth": "node scripts/run-cdk.mjs synth",
+    "diff": "node scripts/run-cdk.mjs diff",
+    "deploy": "node scripts/run-cdk.mjs deploy",
+    "postdeploy": "node scripts/print-outputs.mjs",
+    "destroy": "node scripts/run-cdk.mjs destroy --force",
+    "destroy:interactive": "node scripts/run-cdk.mjs destroy"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.178.2",
-    "constructs": "^10.4.2",
-    "source-map-support": "^0.5.21"
+    "constructs": "^10.4.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
     "aws-cdk": "^2.1003.0",
     "esbuild": "^0.24.2",
-    "ts-node": "^10.9.2",
     "typescript": "^5.7.3"
   }
 }

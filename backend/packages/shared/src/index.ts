@@ -1,4 +1,3 @@
-/** Monthly prices in INR paise (Razorpay). */
 export const PLANS = {
   starter: {
     name: "Starter",

@@ -1,1 +1,1 @@
-export { prisma } from "@streammeo/db";
+export { disconnect as dbDisconnect } from "@streammeo/db";

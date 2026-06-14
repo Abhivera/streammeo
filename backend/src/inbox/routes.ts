@@ -1,7 +1,16 @@
-import { Prisma } from "@prisma/client";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { prisma } from "../db.js";
+import {
+  createCannedResponse,
+  createInbox,
+  deleteCannedResponse,
+  getInboxById,
+  listCannedResponses,
+  listInboxes,
+  updateCannedResponse,
+  updateInbox,
+  type RoutingRule,
+} from "@streammeo/db";
 import type { AppConfig } from "../config.js";
 import { createAuthHook, requireRole } from "../auth/middleware.js";
 
@@ -29,10 +38,7 @@ export async function registerInboxRoutes(app: FastifyInstance, config: AppConfi
     const authPayload = request.auth;
     if (!authPayload) return reply.code(401).send({ error: "Unauthorized" });
 
-    const inboxes = await prisma.inbox.findMany({
-      where: { workspaceId: authPayload.workspaceId },
-      orderBy: { createdAt: "asc" },
-    });
+    const inboxes = await listInboxes(authPayload.workspaceId);
     return { items: inboxes };
   });
 
@@ -43,17 +49,15 @@ export async function registerInboxRoutes(app: FastifyInstance, config: AppConfi
     const body = inboxSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Invalid input" });
 
-    const inbox = await prisma.inbox.create({
-      data: {
-        workspaceId: authPayload.workspaceId,
-        name: body.data.name,
-        email: body.data.email,
-        autoResponderEnabled: body.data.autoResponderEnabled ?? false,
-        autoResponderMessage: body.data.autoResponderMessage,
-        businessHoursStart: body.data.businessHoursStart ?? undefined,
-        businessHoursEnd: body.data.businessHoursEnd ?? undefined,
-        routingRules: (body.data.routingRules ?? []) as Prisma.InputJsonValue,
-      },
+    const inbox = await createInbox(authPayload.workspaceId, {
+      name: body.data.name,
+      email: body.data.email,
+      isDefault: false,
+      autoResponderEnabled: body.data.autoResponderEnabled ?? false,
+      autoResponderMessage: body.data.autoResponderMessage ?? null,
+      businessHoursStart: body.data.businessHoursStart ?? null,
+      businessHoursEnd: body.data.businessHoursEnd ?? null,
+      routingRules: (body.data.routingRules ?? []) as RoutingRule[],
     });
     return reply.code(201).send(inbox);
   });
@@ -66,18 +70,13 @@ export async function registerInboxRoutes(app: FastifyInstance, config: AppConfi
     const body = inboxSchema.partial().safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Invalid input" });
 
-    const existing = await prisma.inbox.findFirst({
-      where: { id, workspaceId: authPayload.workspaceId },
-    });
+    const existing = await getInboxById(authPayload.workspaceId, id);
     if (!existing) return reply.code(404).send({ error: "Inbox not found" });
 
     const { routingRules, ...rest } = body.data;
-    const inbox = await prisma.inbox.update({
-      where: { id },
-      data: {
-        ...rest,
-        ...(routingRules ? { routingRules: routingRules as Prisma.InputJsonValue } : {}),
-      },
+    const inbox = await updateInbox(authPayload.workspaceId, id, {
+      ...rest,
+      ...(routingRules ? { routingRules: routingRules as RoutingRule[] } : {}),
     });
     return inbox;
   });
@@ -86,10 +85,7 @@ export async function registerInboxRoutes(app: FastifyInstance, config: AppConfi
     const authPayload = request.auth;
     if (!authPayload) return reply.code(401).send({ error: "Unauthorized" });
 
-    const items = await prisma.cannedResponse.findMany({
-      where: { workspaceId: authPayload.workspaceId },
-      orderBy: { title: "asc" },
-    });
+    const items = await listCannedResponses(authPayload.workspaceId);
     return { items };
   });
 
@@ -105,13 +101,7 @@ export async function registerInboxRoutes(app: FastifyInstance, config: AppConfi
     const body = cannedSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Invalid input" });
 
-    const item = await prisma.cannedResponse.create({
-      data: {
-        workspaceId: authPayload.workspaceId,
-        title: body.data.title,
-        body: body.data.body,
-      },
-    });
+    const item = await createCannedResponse(authPayload.workspaceId, body.data);
     return reply.code(201).send(item);
   });
 
@@ -123,12 +113,8 @@ export async function registerInboxRoutes(app: FastifyInstance, config: AppConfi
     const body = cannedSchema.partial().safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Invalid input" });
 
-    const existing = await prisma.cannedResponse.findFirst({
-      where: { id, workspaceId: authPayload.workspaceId },
-    });
-    if (!existing) return reply.code(404).send({ error: "Not found" });
-
-    const item = await prisma.cannedResponse.update({ where: { id }, data: body.data });
+    const item = await updateCannedResponse(authPayload.workspaceId, id, body.data);
+    if (!item) return reply.code(404).send({ error: "Not found" });
     return item;
   });
 
@@ -137,12 +123,8 @@ export async function registerInboxRoutes(app: FastifyInstance, config: AppConfi
     if (!authPayload) return reply.code(401).send({ error: "Unauthorized" });
 
     const { id } = request.params as { id: string };
-    const existing = await prisma.cannedResponse.findFirst({
-      where: { id, workspaceId: authPayload.workspaceId },
-    });
-    if (!existing) return reply.code(404).send({ error: "Not found" });
-
-    await prisma.cannedResponse.delete({ where: { id } });
+    const deleted = await deleteCannedResponse(authPayload.workspaceId, id);
+    if (!deleted) return reply.code(404).send({ error: "Not found" });
     return { ok: true };
   });
 }

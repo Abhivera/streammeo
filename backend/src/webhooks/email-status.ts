@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { AppConfig } from "../config.js";
-import { prisma } from "../db.js";
+import { getTicketByIdOnly } from "@streammeo/db";
 import { publishEmailStatusEvent } from "../realtime/appsync.js";
 
 const emailStatusSchema = z.object({
@@ -24,10 +24,7 @@ export async function handleEmailStatusWebhook(
   let ticketId = parsed.success ? parsed.data.ticketId : undefined;
 
   if (!workspaceId && ticketId) {
-    const ticket = await prisma.ticket.findUnique({
-      where: { id: ticketId },
-      select: { workspaceId: true },
-    });
+    const ticket = await getTicketByIdOnly(ticketId);
     workspaceId = ticket?.workspaceId;
   }
 

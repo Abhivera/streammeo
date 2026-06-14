@@ -7,8 +7,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
-  // The frontend is its own project; VITE_* vars are read from the shared root .env.
-  // Files in public/ (e.g. chat-widget.js) are served at the site root automatically.
+  // VITE_* vars are read from the shared repo-root `.env`.
+  // Local dev: leave VITE_API_URL empty → proxy below forwards /api/v1 to Fastify.
+  // Production: set VITE_API_URL to the API Gateway URL from `npm run cdk:deploy`.
   envDir: path.resolve(__dirname, ".."),
   server: {
     proxy: {

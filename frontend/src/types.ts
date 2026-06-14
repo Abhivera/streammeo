@@ -18,6 +18,120 @@ export type Workspace = {
   ticketsLimit?: number;
 };
 
+export type WidgetPosition = "bottom-right" | "bottom-left";
+export type WidgetLauncherStyle = "circle" | "rounded";
+
+export type WidgetLocaleStrings = {
+  welcomeTitle?: string;
+  welcomeMessage?: string;
+  headerSubtitle?: string;
+  quickPrompts?: string[];
+  offlineTitle?: string;
+  offlineMessage?: string;
+  preChatNameLabel?: string;
+  preChatEmailLabel?: string;
+  proactiveMessage?: string;
+  csatPrompt?: string;
+};
+
+export type WidgetSettings = {
+  displayName: string | null;
+  welcomeTitle: string;
+  welcomeMessage: string;
+  headerSubtitle: string;
+  quickPrompts: string[];
+  accentColor: string;
+  panelBackground: string;
+  chatBackground: string;
+  textColor: string;
+  mutedTextColor: string;
+  position: WidgetPosition;
+  launcherStyle: WidgetLauncherStyle;
+  requirePreChatName: boolean;
+  requirePreChatEmail: boolean;
+  preChatNameLabel: string;
+  preChatEmailLabel: string;
+  launcherIconUrl: string | null;
+  avatarUrl: string | null;
+  businessHoursEnabled: boolean;
+  businessHoursStart: number | null;
+  businessHoursEnd: number | null;
+  businessHoursTimezone: string;
+  offlineTitle: string;
+  offlineMessage: string;
+  proactiveEnabled: boolean;
+  proactiveDelaySeconds: number;
+  proactiveMessage: string;
+  csatEnabled: boolean;
+  csatPrompt: string;
+  fileUploadEnabled: boolean;
+  defaultLocale: string;
+  locales: Record<string, WidgetLocaleStrings>;
+  widgets: Record<string, Partial<WidgetSettings>>;
+};
+
+export type WidgetSettingsResponse = {
+  widgetEnabled: boolean;
+  settings: WidgetSettings;
+};
+
+export type TeamMember = {
+  id: string;
+  userId: string;
+  role: "admin" | "manager" | "agent";
+  user: { id: string; email: string; name: string | null };
+};
+
+export type TeamInviteSummary = {
+  id: string;
+  email: string;
+  name: string;
+  role: "admin" | "manager" | "agent";
+  expiresAt: string;
+  createdAt: string;
+};
+
+export type TeamMembersResponse = {
+  items: TeamMember[];
+  invites: TeamInviteSummary[];
+  seatsUsed: number;
+  seatsLimit: number;
+};
+
+export type TeamInvitePreview = {
+  email: string;
+  name: string;
+  role: "admin" | "manager" | "agent";
+  workspaceName: string;
+  expiresAt: string;
+  needsPassword: boolean;
+  hasAccount: boolean;
+};
+
+export type AddTeamMemberResponse = {
+  id: string;
+  userId: string;
+  role: string;
+  user: { id: string; email: string; name: string | null };
+  isNewUser: boolean;
+};
+
+export type InviteTeamMemberResponse = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  expiresAt: string;
+  emailSent: boolean;
+  inviteUrl?: string;
+};
+
+export type AcceptTeamInviteResponse = {
+  token: string;
+  user: User;
+  workspace: Workspace;
+};
+
 export type TicketSummary = {
   id: string;
   number: number;
@@ -139,4 +253,45 @@ export type PresenceUser = {
   userId: string;
   name: string;
   typing: boolean;
+};
+
+export type ChatMessage = {
+  role: string;
+  body: string;
+  createdAt: string;
+  agentName?: string | null;
+  attachments?: Array<{
+    id: string;
+    name: string;
+    mimeType: string;
+    url: string;
+    size: number;
+  }>;
+};
+
+export type ChatSessionSummary = {
+  id: string;
+  visitorId: string;
+  visitorEmail: string | null;
+  visitorName: string | null;
+  status: string;
+  assignedAgentId: string | null;
+  assignedAgent: { id: string; name: string | null; email: string } | null;
+  lastMessage: ChatMessage | null;
+  messageCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ChatSessionDetail = {
+  id: string;
+  visitorId: string;
+  visitorEmail: string | null;
+  visitorName: string | null;
+  status: string;
+  ticketId: string | null;
+  assignedAgent: { id: string; name: string | null; email: string } | null;
+  messages: ChatMessage[];
+  createdAt: string;
+  updatedAt: string;
 };

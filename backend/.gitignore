@@ -2,9 +2,13 @@ node_modules
 dist/
 packages/*/dist/
 
+# Legacy local SQLite dev data
+packages/db/data/
+
 # AWS CDK
 infrastructure/cdk.out/
 infrastructure/cdk-outputs.json
+infrastructure/dist/
 
 # Secrets
 streammeo-firebase-adminsdk-*.json

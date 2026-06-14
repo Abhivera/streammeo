@@ -2,8 +2,10 @@ FROM node:20-alpine
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages ./packages
-RUN npm ci && npm run db:generate
+RUN npm ci
 COPY tsconfig.json tsconfig.base.json ./
 COPY src ./src
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
 EXPOSE 3001
-CMD ["npx", "tsx", "src/index.ts"]
+ENTRYPOINT ["./docker-entrypoint.sh"]

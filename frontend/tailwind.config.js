@@ -26,10 +26,15 @@ export default {
           "0%": { opacity: "0", transform: "translateY(14px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
       },
       animation: {
         "landing-in":
           "landing-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        shimmer: "shimmer 1.8s ease-in-out infinite",
       },
       colors: {
         vw: {

@@ -1,7 +1,8 @@
 import type { ReactElement } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PageHeader } from "../components/PageHeader";
 import { usePageTitle } from "../hooks/usePageTitle";
+import { useAsyncData } from "../hooks/useAsyncData";
 import { api, fetchSlaPolicies } from "../api/client";
 import type { SlaPolicy } from "../types";
 
@@ -13,16 +14,10 @@ function formatMinutes(minutes: number): string {
 
 export function SlaSettingsPage(): ReactElement {
   usePageTitle("SLA policies");
-  const [policies, setPolicies] = useState<SlaPolicy[]>([]);
   const [name, setName] = useState("");
   const [firstResponseMinutes, setFirstResponseMinutes] = useState(240);
   const [resolutionMinutes, setResolutionMinutes] = useState(1440);
-
-  const load = () => {
-    void fetchSlaPolicies().then(setPolicies);
-  };
-
-  useEffect(load, []);
+  const { data: policies, reload } = useAsyncData(() => fetchSlaPolicies(), []);
 
   async function createPolicy(e: React.FormEvent) {
     e.preventDefault();
@@ -32,7 +27,7 @@ export function SlaSettingsPage(): ReactElement {
       resolutionMinutes,
     });
     setName("");
-    load();
+    reload();
   }
 
   return (
@@ -43,30 +38,52 @@ export function SlaSettingsPage(): ReactElement {
       />
 
       <div className="vw-panel overflow-hidden">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-vw-table-head text-vw-muted">
-            <tr>
-              <th className="px-5 py-3 font-medium">Policy</th>
-              <th className="px-5 py-3 font-medium">First response</th>
-              <th className="px-5 py-3 font-medium">Resolution</th>
-              <th className="px-5 py-3 font-medium">Default</th>
-            </tr>
-          </thead>
-          <tbody>
-            {policies.map((policy) => (
-              <tr key={policy.id} className="border-t border-vw-border-faint">
-                <td className="px-5 py-3 font-medium text-vw-fg">{policy.name}</td>
-                <td className="px-5 py-3 text-vw-fg-soft">
-                  {formatMinutes(policy.firstResponseMinutes)}
-                </td>
-                <td className="px-5 py-3 text-vw-fg-soft">
-                  {formatMinutes(policy.resolutionMinutes)}
-                </td>
-                <td className="px-5 py-3 text-vw-muted">{policy.isDefault ? "Yes" : "—"}</td>
+        <ul className="vw-table-mobile">
+          {(policies ?? []).map((policy: SlaPolicy) => (
+            <li key={policy.id} className="space-y-2 p-4">
+              <p className="font-medium text-vw-headline">{policy.name}</p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <p className="text-xs text-vw-muted">First response</p>
+                  <p className="text-vw-fg-soft">{formatMinutes(policy.firstResponseMinutes)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-vw-muted">Resolution</p>
+                  <p className="text-vw-fg-soft">{formatMinutes(policy.resolutionMinutes)}</p>
+                </div>
+              </div>
+              <p className="text-xs text-vw-muted">
+                Default: {policy.isDefault ? "Yes" : "No"}
+              </p>
+            </li>
+          ))}
+        </ul>
+        <div className="vw-table-desktop">
+          <table className="min-w-full text-left text-sm">
+            <thead className="vw-table-head">
+              <tr>
+                <th className="px-5 py-3">Policy</th>
+                <th className="px-5 py-3">First response</th>
+                <th className="px-5 py-3">Resolution</th>
+                <th className="px-5 py-3">Default</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {(policies ?? []).map((policy: SlaPolicy) => (
+                <tr key={policy.id} className="vw-table-row">
+                  <td className="px-5 py-3 font-medium text-vw-fg">{policy.name}</td>
+                  <td className="px-5 py-3 text-vw-fg-soft">
+                    {formatMinutes(policy.firstResponseMinutes)}
+                  </td>
+                  <td className="px-5 py-3 text-vw-fg-soft">
+                    {formatMinutes(policy.resolutionMinutes)}
+                  </td>
+                  <td className="px-5 py-3 text-vw-muted">{policy.isDefault ? "Yes" : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <form onSubmit={(e) => void createPolicy(e)} className="vw-panel space-y-4 p-6">

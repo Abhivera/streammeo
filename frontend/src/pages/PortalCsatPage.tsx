@@ -1,16 +1,12 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import axios from "axios";
+import { Link, useParams } from "react-router-dom";
+import { fetchPortalCsat, submitPortalCsat } from "../api/client";
 import { usePageTitle } from "../hooks/usePageTitle";
 
 export function PortalCsatPage(): ReactElement {
   const { token } = useParams<{ token: string }>();
-  const [info, setInfo] = useState<{
-    ticketNumber: number;
-    subject: string;
-    alreadyResponded: boolean;
-  } | null>(null);
+  const [info, setInfo] = useState<Awaited<ReturnType<typeof fetchPortalCsat>> | null>(null);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [done, setDone] = useState(false);
@@ -18,20 +14,17 @@ export function PortalCsatPage(): ReactElement {
 
   usePageTitle("Rate your support experience");
 
-  const baseURL = import.meta.env.VITE_API_URL || "";
-
   useEffect(() => {
     if (!token) return;
-    axios
-      .get(`${baseURL}/api/v1/portal/csat/${token}`)
-      .then((res) => setInfo(res.data))
+    fetchPortalCsat(token)
+      .then(setInfo)
       .catch(() => setError("Survey link is invalid or expired."));
-  }, [token, baseURL]);
+  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
-    await axios.post(`${baseURL}/api/v1/portal/csat/${token}`, { rating, comment: comment || undefined });
+    await submitPortalCsat(token, { rating, comment: comment || undefined });
     setDone(true);
   };
 
@@ -106,6 +99,11 @@ export function PortalCsatPage(): ReactElement {
         <button type="submit" className="vw-btn-primary w-full">
           Submit feedback
         </button>
+        <p className="text-center text-sm text-vw-muted">
+          <Link to="/help/rate-your-experience" className="text-vw-accent hover:text-vw-accent-hover">
+            About this survey
+          </Link>
+        </p>
       </form>
     </div>
   );

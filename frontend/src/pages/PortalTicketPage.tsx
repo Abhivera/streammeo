@@ -1,45 +1,33 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import axios from "axios";
+import { Link, useParams } from "react-router-dom";
+import { fetchPortalTicket, replyPortalTicket } from "../api/client";
 import { usePageTitle } from "../hooks/usePageTitle";
-
-type PortalTicket = {
-  number: number;
-  subject: string;
-  status: string;
-  comments: Array<{ id: string; body: string; createdAt: string; authorName: string }>;
-};
 
 export function PortalTicketPage(): ReactElement {
   const { token } = useParams<{ token: string }>();
-  const [ticket, setTicket] = useState<PortalTicket | null>(null);
+  const [ticket, setTicket] = useState<Awaited<ReturnType<typeof fetchPortalTicket>> | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   usePageTitle(ticket ? `Ticket #${ticket.number}` : "Support ticket");
 
-  const baseURL = import.meta.env.VITE_API_URL || "";
-
   useEffect(() => {
     if (!token) return;
-    axios
-      .get<PortalTicket>(`${baseURL}/api/v1/portal/ticket/${token}`)
-      .then((res) => setTicket(res.data))
+    fetchPortalTicket(token)
+      .then(setTicket)
       .catch(() => setError("This link is invalid or has expired."));
-  }, [token, baseURL]);
+  }, [token]);
 
   const handleReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !message.trim()) return;
-    await axios.post(`${baseURL}/api/v1/portal/ticket/${token}/reply`, {
-      message: message.trim(),
-    });
+    await replyPortalTicket(token, message.trim());
     setMessage("");
     setSent(true);
-    const res = await axios.get<PortalTicket>(`${baseURL}/api/v1/portal/ticket/${token}`);
-    setTicket(res.data);
+    const updated = await fetchPortalTicket(token);
+    setTicket(updated);
   };
 
   if (error) {
@@ -105,6 +93,16 @@ export function PortalTicketPage(): ReactElement {
         ) : (
           <p className="text-sm text-vw-muted">This ticket is closed.</p>
         )}
+
+        <footer className="border-t border-vw-border pt-6 text-center text-sm text-vw-muted">
+          <Link to="/help/track-your-request" className="text-vw-accent hover:text-vw-accent-hover">
+            Help using this page
+          </Link>
+          <span className="mx-2">·</span>
+          <Link to="/help" className="text-vw-accent hover:text-vw-accent-hover">
+            Customer help center
+          </Link>
+        </footer>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { AppConfig } from "../config.js";
 import { createAuthHook, requireRole } from "../auth/middleware.js";
 import { PLANS, type PlanId } from "@streammeo/shared";
-import { prisma } from "../db.js";
+import { getUserById, getWorkspaceById } from "@streammeo/db";
 import {
   applyPlanUpgrade,
   razorpayFetch,
@@ -39,9 +39,7 @@ export async function registerBillingRoutes(app: FastifyInstance, config: AppCon
     const authPayload = request.auth;
     if (!authPayload) return reply.code(401).send({ error: "Unauthorized" });
 
-    const workspace = await prisma.workspace.findUnique({
-      where: { id: authPayload.workspaceId },
-    });
+    const workspace = await getWorkspaceById(authPayload.workspaceId);
     if (!workspace) return reply.code(404).send({ error: "Workspace not found" });
 
     const plan = PLANS[workspace.plan as PlanId] ?? PLANS.starter;
@@ -74,10 +72,7 @@ export async function registerBillingRoutes(app: FastifyInstance, config: AppCon
       });
     }
 
-    const workspace = await prisma.workspace.findUnique({
-      where: { id: authPayload.workspaceId },
-      include: { members: { where: { userId: authPayload.userId }, include: { user: true } } },
-    });
+    const workspace = await getWorkspaceById(authPayload.workspaceId);
     if (!workspace) return reply.code(404).send({ error: "Workspace not found" });
 
     const receipt = `ws_${workspace.id.slice(0, 8)}_${planId}_${Date.now()}`;
@@ -104,7 +99,7 @@ export async function registerBillingRoutes(app: FastifyInstance, config: AppCon
     }
 
     const order = (await orderRes.json()) as RazorpayOrder;
-    const user = workspace.members[0]?.user;
+    const user = await getUserById(authPayload.userId);
 
     return {
       orderId: order.id,
@@ -176,7 +171,15 @@ export async function registerBillingRoutes(app: FastifyInstance, config: AppCon
 
   app.post("/api/v1/billing/webhook", async (request, reply) => {
     const signature = request.headers["x-razorpay-signature"] as string | undefined;
-    const rawBody = JSON.stringify(request.body);
+    const lambdaEvent = (request as { awsLambda?: { event?: { body?: string | null; isBase64Encoded?: boolean } } })
+      .awsLambda?.event;
+    const eventBody = lambdaEvent?.body;
+    const rawBody =
+      eventBody && eventBody.length > 0
+        ? lambdaEvent?.isBase64Encoded
+          ? Buffer.from(eventBody, "base64").toString("utf8")
+          : eventBody
+        : (request.rawBody ?? JSON.stringify(request.body));
     const result = await handleBillingWebhook(config, rawBody, request.body, signature);
     return reply.code(result.status).send(result.body);
   });

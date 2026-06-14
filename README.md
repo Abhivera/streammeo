@@ -21,7 +21,8 @@ Companies subscribe to Streammeo as their central command centre for all custome
 ## Table of contents
 
 1. [Tech stack](#tech-stack)
-2. [Target personas](#target-personas)
+2. [Documentation](#documentation)
+3. [Target personas](#target-personas)
 3. [Feature modules](#feature-modules)
 4. [User stories](#user-stories)
 5. [Non-functional requirements](#non-functional-requirements)
@@ -42,16 +43,29 @@ Companies subscribe to Streammeo as their central command centre for all custome
 | ----- | ---------- |
 | **Frontend** | React 18 · Vite · TypeScript · Tailwind CSS |
 | **Backend / API** | Node.js · Fastify · REST |
-| **Database** | PostgreSQL (primary) · Prisma ORM |
-| **Cache / queues** | Redis |
+| **Database** | DynamoDB |
+| **Cache / queues** | Redis (local) · SQS (email, production) |
 | **Email infrastructure** | Brevo |
-| **Real-time** | WebSockets via Socket.IO |
+| **Real-time** | Socket.IO (local) · AppSync (production tickets/billing) |
 | **AI / ML** | Anthropic Claude *(MVP)* · Amazon Bedrock *(planned — Q2)* |
-| **Infrastructure** | AWS *(planned — production)* |
-| **Auth** | JWT *(Firebase SSO planned — Q3)* |
+| **Infrastructure** | AWS CDK (Lambda, API Gateway, DynamoDB, AppSync, S3, CloudFront) |
+| **Auth** | JWT · Firebase Google sign-in |
 | **Payments** | Razorpay |
 | **Monitoring** | CloudWatch *(planned — production)* |
 | **Search** | Elasticsearch *(planned — Q3)* |
+
+---
+
+## Documentation
+
+| Audience | In-app | Markdown |
+| -------- | ------ | -------- |
+| **Customers** (end users) | [/help](http://localhost:5173/help) | [`docs/help/`](./docs/help/README.md) |
+| **Your team** (agents, admins) | [/docs](http://localhost:5173/docs) | [`docs/`](./docs/README.md) |
+
+Team guides cover workspace setup, agent console, and widget embed. Customer help covers chat, ticket links, surveys, and FAQ.
+
+For API reference, deployment, and implementation status, see sections below in this README.
 
 ---
 
@@ -396,8 +410,8 @@ What exists in this repo today vs the PRD roadmap. Last audited against the code
 | Area | Status | Notes |
 | ---- | ------ | ----- |
 | Monorepo layout (`backend/` + `frontend/`) | ✅ | Independent npm projects; shared root `.env` |
-| Docker Compose (Postgres, Redis, API, UI) | ✅ | `docker-compose.yml` at repo root |
-| Prisma schema + seed script | ✅ | No versioned `migrations/` yet — use `db push` or `migrate dev` locally |
+| Docker Compose (DynamoDB local, Redis, API, UI) | ✅ | `docker-compose.yml` at repo root |
+| DynamoDB single-table store + seed script | ✅ | `backend/packages/db/` |
 | JWT auth (register / login / me) | ✅ | Email + password; roles: `admin`, `manager`, `agent` |
 | Razorpay billing | ✅ | Checkout, verify, webhook; plan limits enforced on tickets + AI usage |
 | Socket.IO presence (Redis-backed) | ✅ | Ticket view + typing collision detection |
@@ -499,8 +513,7 @@ What exists in this repo today vs the PRD roadmap. Last audited against the code
 | Area | Status | Notes |
 | ---- | ------ | ----- |
 | Local dev stack | ✅ | Docker Compose + Vite proxy |
-| AWS webhook deploy (CDK + Lambda + AppSync) | ✅ | `backend/infrastructure/` — webhook routes only |
-| Full AWS API deploy (entire Fastify app) | ❌ | Main API still runs on Node/Fastify or Docker |
+| AWS API deploy (CDK + Lambda + AppSync) | ✅ | `backend/infrastructure/` — see [AWS deploy](#aws-deploy-cdk--lambda) |
 | CloudWatch monitoring | ❌ | Planned |
 | Elasticsearch search | ❌ | Planned Q3 |
 | SSO / SAML / Google Workspace / 2FA | ❌ | Planned Q3–Q4 |
@@ -519,50 +532,17 @@ What exists in this repo today vs the PRD roadmap. Last audited against the code
 
 ---
 
-## Webhooks (Lambda + AppSync)
+## AWS deploy (CDK + Lambda)
 
-Inbound webhooks use **shared handler logic** in `backend/src/webhooks/`. The same code runs in two places:
-
-| Environment | Entry point | Use when |
-| ----------- | ----------- | -------- |
-| **Local dev** | Fastify (`backend/src/index.ts`) | `npm run dev` — webhooks hit `http://localhost:3001/...` |
-| **Production** | Lambda (`backend/src/lambda/webhook-handler.ts`) | Deployed via CDK — Brevo/Razorpay point at API Gateway URL |
-
-After a webhook is processed, handlers publish events to **AWS AppSync** so the agent console can refresh in real time (e.g. new email ticket appears in the queue without polling).
-
-### Webhook routes
-
-| Provider | Path | Lambda | AppSync event |
-| -------- | ---- | ------ | ------------- |
-| Brevo (inbound email) | `POST /api/v1/webhooks/email/inbound` | ✅ | `publishTicketEvent` (`ticket.created`) |
-| Brevo (delivery status) | `POST /api/v1/webhooks/email/status` | ✅ | `publishEmailStatus` |
-| Razorpay (billing) | `POST /api/v1/billing/webhook` | ✅ | `publishBillingEvent` (`billing.plan_upgraded`) |
-
-### Deploy webhook stack (AWS)
+Stack `StreammeoApi` in `backend/infrastructure/`. Details: [`backend/infrastructure/README.md`](backend/infrastructure/README.md).
 
 ```bash
-cd backend/infrastructure
-npm install
-
-# Required at deploy time (use your RDS / Secrets Manager URL in prod)
-export DATABASE_URL=postgresql://...
-export JWT_SECRET=...
-export BREVO_WEBHOOK_SECRET=...
-export RAZORPAY_KEY_ID=...
-export RAZORPAY_KEY_SECRET=...
-export RAZORPAY_WEBHOOK_SECRET=...
-
-npm run deploy
+cp .env.example .env          # repo root; set JWT_SECRET + FRONTEND_URL
+cd backend && npm install && npm run cdk:deploy
+npm run postdeploy --prefix backend/infrastructure   # merge outputs into .env
 ```
 
-CDK outputs:
-
-- `WebhookApiUrl` — base URL; append route path for each provider
-- `AppSyncGraphqlUrl` + `AppSyncApiKey` — set in root `.env` as `APPSYNC_*` and `VITE_APPSYNC_*`
-
-### AppSync subscriptions (agent console)
-
-When `VITE_APPSYNC_GRAPHQL_URL` and `VITE_APPSYNC_API_KEY` are set, the ticket queue subscribes to `onTicketEvent(workspaceId)` and auto-refreshes when webhooks create tickets.
+Unset `DYNAMODB_ENDPOINT` in production. Webhooks: `{ApiUrl}/api/v1/webhooks/...` and `/api/v1/billing/webhook`.
 
 ---
 
@@ -574,15 +554,12 @@ When `VITE_APPSYNC_GRAPHQL_URL` and `VITE_APPSYNC_API_KEY` are set, the ticket q
 cp .env.example .env
 ```
 
-Set `DATABASE_URL` to match your Postgres instance. With root `docker compose up postgres`, use:
+Set `JWT_SECRET` (16+ chars). Local defaults work for DynamoDB and Redis.
 
-`postgresql://postgres:postgres@localhost:5432/streammeo`
-
-### 2. Start Postgres + Redis
+### 2. Start DynamoDB + Redis
 
 ```bash
-docker compose up postgres redis -d
-# or use an existing Postgres + Redis on localhost
+docker compose up dynamodb redis -d
 ```
 
 ### 3. Backend
@@ -590,8 +567,7 @@ docker compose up postgres redis -d
 ```bash
 cd backend
 npm install
-npm run db:generate
-npm run db:migrate   # or: cd packages/db && npx prisma db push
+npm run db:create-table
 npm run db:seed
 npm run dev
 ```
@@ -604,10 +580,11 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:5173**. Demo login after seed:
+Open **http://localhost:5173**. Demo logins after seed (password `password123` for all):
 
-- Email: `demo@streammeo.com`
-- Password: `password123`
+- Admin: `admin@streammeo.com`
+- Manager: `manager@streammeo.com`
+- Agent: `agent@streammeo.com`
 
 ---
 
@@ -683,10 +660,10 @@ streammeo/
 │   │   ├── presence/       # Socket.IO collision detection
 │   │   ├── webhooks/       # Shared inbound webhook handlers
 │   │   ├── realtime/       # AppSync publish client
-│   │   └── lambda/         # AWS Lambda entry (webhook-handler)
-│   ├── infrastructure/     # CDK: API Gateway + Lambda + AppSync
+│   │   └── lambda/         # AWS Lambda entries (api-handler, email-worker, sla-checker)
+│   ├── infrastructure/     # CDK: API Gateway + Lambda + DynamoDB + AppSync
 │   └── packages/
-│       ├── db/             # Prisma schema + seed
+│       ├── db/             # DynamoDB access layer + seed
 │       └── shared/         # Plans, ticket status helpers
 └── frontend/               # Agent console (Vite + React)
     └── src/pages/          # Dashboard, tickets, settings, inboxes, SLA

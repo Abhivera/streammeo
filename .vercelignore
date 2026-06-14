@@ -1,0 +1,12 @@
+backend/
+backend/**
+
+.git/
+.cursor/
+.vscode/
+**/.env
+**/.env.*
+!**/.env.example
+
+docs/
+docker-compose.yml

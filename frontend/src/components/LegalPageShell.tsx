@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { BrandLogo } from "./BrandLogo";
+import { SiteFooter } from "./SiteFooter";
 import { LEGAL_LAST_UPDATED, LEGAL_NAV } from "../legal/constants";
 
 export function LegalFooterLinks({ className = "" }: { className?: string }): ReactElement {
@@ -54,10 +55,7 @@ export function LegalPageShell({
             >
               Log in
             </Link>
-            <Link
-              to="/register"
-              className="rounded-lg bg-vw-accent px-4 py-2 text-sm font-semibold text-vw-accent-fg shadow-vw transition-[background-color,transform] hover:bg-vw-accent-hover active:scale-[0.99]"
-            >
+            <Link to="/register" className="vw-btn-primary text-sm">
               Get started
             </Link>
           </div>
@@ -72,17 +70,7 @@ export function LegalPageShell({
         {children}
       </main>
 
-      <footer className="relative z-10 border-t border-vw-border bg-vw-surface px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-8">
-          <LegalFooterLinks />
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <BrandLogo variant="full" fit="chrome" chromeSize="footer" className="opacity-90" />
-            <Link to="/" className="text-sm font-medium text-vw-fg-soft transition-colors hover:text-vw-fg">
-              Back to home
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter showHomeLink />
     </div>
   );
 }

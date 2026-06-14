@@ -7,15 +7,17 @@
     color-scheme: dark;
   }
 
+  #root {
+    @apply min-h-screen min-w-0 overflow-x-hidden;
+  }
+
   body {
-    @apply antialiased;
+    @apply antialiased overflow-x-hidden min-w-0;
     color: theme("colors.vw.fg");
     background-color: theme("colors.vw.bg");
-    background-image: radial-gradient(
-      120% 90% at 50% 0%,
-      rgba(255, 30, 45, 0.07) 0%,
-      transparent 55%
-    );
+    background-image:
+      radial-gradient(ellipse 80% 60% at 100% 0%, rgba(255, 30, 45, 0.12) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 50% at 0% 100%, rgba(255, 30, 45, 0.04) 0%, transparent 50%);
     background-attachment: fixed;
   }
 
@@ -74,10 +76,16 @@
     background-color: theme("colors.vw.accent");
     color: theme("colors.vw.accent-fg");
     outline-color: theme("colors.vw.accent");
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.35),
+      0 0 0 0 rgba(255, 30, 45, 0);
   }
 
   .vw-btn-primary:hover {
     background-color: theme("colors.vw.accent-hover");
+    box-shadow:
+      0 4px 16px rgba(255, 30, 45, 0.25),
+      0 1px 2px rgba(0, 0, 0, 0.35);
   }
 
   .vw-btn-secondary {
@@ -92,6 +100,23 @@
   }
 
   .vw-btn-secondary:hover {
+    border-color: theme("colors.vw.muted");
+    background-color: theme("colors.vw.surface");
+    color: theme("colors.vw.fg");
+  }
+
+  .vw-btn-google {
+    @apply inline-flex items-center justify-center gap-3 rounded-lg border px-4 py-2.5 text-sm font-medium shadow-vw;
+    @apply transition-[background-color,border-color,color] duration-vw ease-out-expo;
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2;
+    @apply disabled:pointer-events-none disabled:opacity-45;
+    border-color: theme("colors.vw.border");
+    background-color: theme("colors.vw.elevated");
+    color: theme("colors.vw.fg-soft");
+    outline-color: theme("colors.vw.accent");
+  }
+
+  .vw-btn-google:hover {
     border-color: theme("colors.vw.muted");
     background-color: theme("colors.vw.surface");
     color: theme("colors.vw.fg");
@@ -117,7 +142,7 @@
   }
 
   .vw-page-title {
-    @apply text-2xl font-semibold tracking-tight;
+    @apply text-xl font-semibold tracking-tight sm:text-2xl;
     color: theme("colors.vw.headline");
   }
 
@@ -154,11 +179,316 @@
   .vw-auth-shell {
     @apply min-h-screen;
     background-color: theme("colors.vw.bg");
-    background-image: radial-gradient(
-      120% 90% at 50% 0%,
-      rgba(255, 30, 45, 0.08) 0%,
-      transparent 58%
-    );
+    background-image:
+      radial-gradient(ellipse 80% 60% at 100% 0%, rgba(255, 30, 45, 0.1) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 50% at 0% 100%, rgba(255, 30, 45, 0.04) 0%, transparent 50%);
     background-attachment: fixed;
+  }
+
+  .vw-marketing-shell {
+    @apply min-h-screen;
+    background-color: theme("colors.vw.bg");
+    background-image:
+      radial-gradient(ellipse 90% 70% at 85% -10%, rgba(255, 30, 45, 0.14) 0%, transparent 58%),
+      radial-gradient(ellipse 60% 45% at 10% 100%, rgba(255, 30, 45, 0.05) 0%, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  .vw-auth-hero {
+    border-right: 1px solid theme("colors.vw.border");
+    background-color: theme("colors.vw.sidebar");
+  }
+
+  .vw-auth-card {
+    @apply rounded-2xl border p-6 shadow-vw-lg sm:p-8;
+    border-color: theme("colors.vw.border");
+    background-color: theme("colors.vw.surface");
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+      0 20px 50px rgba(0, 0, 0, 0.35);
+  }
+
+  .vw-auth-divider {
+    @apply flex items-center gap-3 text-[0.6875rem] font-medium uppercase tracking-[0.14em];
+    color: theme("colors.vw.muted");
+  }
+
+  .vw-auth-alert {
+    @apply flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm leading-snug;
+  }
+
+  .vw-auth-alert-error {
+    border-color: theme("colors.vw.danger-input");
+    background-color: rgba(239, 68, 68, 0.08);
+    color: theme("colors.vw.danger");
+  }
+
+  .vw-auth-alert-success {
+    border-color: theme("colors.vw.success-edge");
+    background-color: theme("colors.vw.success-soft");
+    color: theme("colors.vw.success-fg");
+  }
+
+  .vw-eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.22em];
+    color: theme("colors.vw.accent");
+  }
+
+  .vw-hero-title {
+    @apply font-brand text-3xl font-semibold leading-[1.1] tracking-tight sm:text-4xl sm:leading-[1.08] lg:text-5xl xl:text-[3.25rem];
+    color: theme("colors.vw.headline");
+  }
+
+  .vw-skeleton {
+    @apply rounded-lg;
+    background: linear-gradient(
+      90deg,
+      theme("colors.vw.elevated") 0%,
+      theme("colors.vw.surface") 50%,
+      theme("colors.vw.elevated") 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+
+  .vw-filter-pill {
+    @apply rounded-full px-3.5 py-1.5 text-xs font-medium transition-[background-color,color,box-shadow] duration-vw ease-out-expo;
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2;
+    color: theme("colors.vw.muted");
+    outline-color: theme("colors.vw.accent");
+  }
+
+  .vw-filter-pill:hover {
+    color: theme("colors.vw.fg");
+    background-color: theme("colors.vw.elevated");
+  }
+
+  .vw-filter-pill-active {
+    background-color: theme("colors.vw.accent");
+    color: theme("colors.vw.accent-fg");
+    box-shadow: 0 2px 12px rgba(255, 30, 45, 0.25);
+  }
+
+  .vw-filter-pill-active:hover {
+    background-color: theme("colors.vw.accent-hover");
+    color: theme("colors.vw.accent-fg");
+  }
+
+  .vw-table-row {
+    @apply border-t transition-colors duration-vw ease-out-expo;
+    border-color: theme("colors.vw.border-faint");
+  }
+
+  .vw-table-row:hover {
+    background-color: rgba(39, 39, 42, 0.45);
+  }
+
+  .vw-stat-card {
+    @apply vw-panel relative overflow-hidden p-5;
+  }
+
+  .vw-stat-card::before {
+    content: "";
+    @apply absolute inset-x-0 top-0 h-px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 30, 45, 0.35),
+      transparent
+    );
+  }
+
+  .vw-comment-public {
+    @apply vw-panel p-4;
+  }
+
+  .vw-comment-internal {
+    @apply vw-panel border-dashed p-4;
+    border-color: theme("colors.vw.warning-edge");
+    background-color: theme("colors.vw.warning-soft");
+  }
+
+  .vw-mobile-nav {
+    @apply fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t md:hidden;
+    border-color: theme("colors.vw.border");
+    background-color: theme("colors.vw.sidebar");
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .vw-mobile-nav-link {
+    @apply flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[0.625rem] font-medium leading-tight transition-colors duration-vw;
+    color: theme("colors.vw.muted");
+  }
+
+  .vw-mobile-nav-link-active {
+    color: theme("colors.vw.accent");
+  }
+
+  .vw-avatar {
+    @apply flex shrink-0 items-center justify-center rounded-full text-xs font-semibold;
+    background-color: theme("colors.vw.accent-surface");
+    color: theme("colors.vw.accent");
+  }
+
+  .vw-checkbox {
+    @apply h-4 w-4 shrink-0 cursor-pointer rounded border transition-[border-color,background-color,box-shadow] duration-vw ease-out-expo;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-0;
+    border-color: theme("colors.vw.border");
+    background-color: theme("colors.vw.keywell");
+    --tw-ring-color: theme("colors.vw.accent-ring");
+    accent-color: theme("colors.vw.accent");
+  }
+
+  .vw-checkbox:checked {
+    border-color: theme("colors.vw.accent");
+    background-color: theme("colors.vw.accent");
+  }
+
+  .vw-panel-header {
+    @apply flex flex-col items-start gap-2 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5;
+    border-color: theme("colors.vw.border");
+  }
+
+  .vw-panel-title {
+    @apply text-lg font-medium;
+    color: theme("colors.vw.headline");
+  }
+
+  .vw-section-eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.14em];
+    color: theme("colors.vw.muted");
+  }
+
+  .vw-settings-tabs {
+    @apply flex flex-nowrap gap-1 overflow-x-auto rounded-xl border p-1;
+    @apply snap-x snap-mandatory;
+    -webkit-overflow-scrolling: touch;
+    border-color: theme("colors.vw.border");
+    background-color: theme("colors.vw.surface");
+    scrollbar-width: none;
+  }
+
+  .vw-settings-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .vw-settings-tab {
+    @apply shrink-0 snap-start rounded-lg px-3 py-2 text-sm font-medium transition-[background-color,color,box-shadow] duration-vw ease-out-expo;
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2;
+    @apply sm:px-3.5;
+    color: theme("colors.vw.muted");
+    outline-color: theme("colors.vw.accent");
+  }
+
+  .vw-settings-tab:hover {
+    color: theme("colors.vw.fg");
+    background-color: theme("colors.vw.elevated");
+  }
+
+  .vw-settings-tab-active {
+    background-color: theme("colors.vw.navActive");
+    color: theme("colors.vw.accent");
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+
+  .vw-chat-bubble-visitor {
+    @apply rounded-2xl rounded-bl-md px-3.5 py-2.5 text-sm;
+    background-color: theme("colors.vw.elevated");
+    color: theme("colors.vw.fg");
+  }
+
+  .vw-chat-bubble-agent {
+    @apply rounded-2xl rounded-br-md px-3.5 py-2.5 text-sm text-white;
+    background-color: theme("colors.vw.accent");
+    box-shadow: 0 2px 12px rgba(255, 30, 45, 0.2);
+  }
+
+  .vw-chat-bubble-system {
+    @apply rounded-2xl rounded-br-md px-3.5 py-2.5 text-sm;
+    background-color: theme("colors.vw.elevated");
+    color: theme("colors.vw.muted");
+  }
+
+  .vw-progress-bar {
+    @apply h-2 overflow-hidden rounded-full;
+    background-color: theme("colors.vw.progress-track");
+  }
+
+  .vw-progress-fill {
+    @apply h-full rounded-full transition-all duration-500 ease-out-expo;
+    background-color: theme("colors.vw.progress-fill");
+  }
+
+  .vw-quick-link {
+    @apply vw-panel flex items-center gap-3 p-4 transition-[border-color,transform,box-shadow] duration-vw ease-out-expo;
+    @apply sm:hover:-translate-y-0.5 sm:hover:border-vw-accent/25 sm:hover:shadow-vw-lg;
+  }
+
+  .vw-scroll-strip {
+    @apply -mx-4 overflow-x-auto px-4 pb-1;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .vw-scroll-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (min-width: 640px) {
+    .vw-scroll-strip {
+      @apply mx-0 overflow-visible px-0 pb-0;
+    }
+  }
+
+  .vw-scroll-strip-inner {
+    @apply flex w-max gap-2;
+  }
+
+  @media (min-width: 640px) {
+    .vw-scroll-strip-inner {
+      @apply w-auto flex-wrap;
+    }
+  }
+
+  .vw-chat-workspace {
+    @apply grid min-h-0 gap-0 overflow-hidden rounded-xl border border-vw-border bg-vw-surface shadow-vw;
+    @apply min-h-[calc(100dvh-15rem)] max-h-[calc(100dvh-15rem)];
+    @apply md:min-h-[28rem] md:max-h-none md:grid-cols-[16rem_1fr];
+    @apply lg:min-h-[32rem] lg:grid-cols-[18rem_1fr];
+  }
+
+  .vw-list-row-actions {
+    @apply flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center;
+  }
+
+  .vw-table-mobile {
+    @apply divide-y divide-vw-border-faint md:hidden;
+  }
+
+  .vw-table-desktop {
+    @apply hidden overflow-x-auto md:block;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: theme("colors.vw.border") transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: theme("colors.vw.border");
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: theme("colors.vw.muted");
   }
 }

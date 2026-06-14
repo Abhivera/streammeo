@@ -16,8 +16,8 @@ import {
   updateTicket,
 } from "./service.js";
 import { sendOutboundEmail } from "../email/routes.js";
-import { createCsatSurvey } from "../csat/routes.js";
-import { prisma } from "../db.js";
+import { createCsatSurveyForTicket } from "../csat/routes.js";
+import { getMembership, listTags } from "@streammeo/db";
 
 const listQuerySchema = z.object({
   status: z.enum(TICKET_STATUSES).optional(),
@@ -57,6 +57,25 @@ const bulkSchema = z.object({
   tagIds: z.array(z.string()).optional(),
   delete: z.boolean().optional(),
 });
+
+async function assertAssigneeAllowed(
+  workspaceId: string,
+  actorRole: "admin" | "manager" | "agent",
+  actorUserId: string,
+  assigneeId: string | null | undefined,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (assigneeId === undefined) return { ok: true };
+  if (actorRole === "agent" && assigneeId !== null && assigneeId !== actorUserId) {
+    return { ok: false, status: 403, error: "Agents can only assign tickets to themselves" };
+  }
+  if (assigneeId === null) return { ok: true };
+
+  const membership = await getMembership(assigneeId, workspaceId);
+  if (!membership) {
+    return { ok: false, status: 400, error: "Assignee is not a workspace member" };
+  }
+  return { ok: true };
+}
 
 export async function registerTicketRoutes(app: FastifyInstance, config: AppConfig): Promise<void> {
   const auth = createAuthHook(config);
@@ -113,6 +132,16 @@ export async function registerTicketRoutes(app: FastifyInstance, config: AppConf
     const body = updateSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Invalid input" });
 
+    const assigneeCheck = await assertAssigneeAllowed(
+      authPayload.workspaceId,
+      authPayload.role,
+      authPayload.userId,
+      body.data.assigneeId,
+    );
+    if (!assigneeCheck.ok) {
+      return reply.code(assigneeCheck.status).send({ error: assigneeCheck.error });
+    }
+
     try {
       const ticket = await updateTicket(
         authPayload.workspaceId,
@@ -123,7 +152,7 @@ export async function registerTicketRoutes(app: FastifyInstance, config: AppConf
       if (!ticket) return reply.code(404).send({ error: "Ticket not found" });
 
       if (body.data.status === "resolved") {
-        void createCsatSurvey(id, config).catch((err) =>
+        void createCsatSurveyForTicket(id, config).catch((err) =>
           app.log.warn({ err }, "CSAT survey creation failed"),
         );
       }
@@ -174,6 +203,16 @@ export async function registerTicketRoutes(app: FastifyInstance, config: AppConf
     const body = bulkSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Invalid input" });
 
+    const assigneeCheck = await assertAssigneeAllowed(
+      authPayload.workspaceId,
+      authPayload.role,
+      authPayload.userId,
+      body.data.assigneeId,
+    );
+    if (!assigneeCheck.ok) {
+      return reply.code(assigneeCheck.status).send({ error: assigneeCheck.error });
+    }
+
     const result = await bulkUpdateTickets(
       authPayload.workspaceId,
       authPayload.userId,
@@ -200,10 +239,7 @@ export async function registerTicketRoutes(app: FastifyInstance, config: AppConf
     const authPayload = request.auth;
     if (!authPayload) return reply.code(401).send({ error: "Unauthorized" });
 
-    const items = await prisma.tag.findMany({
-      where: { workspaceId: authPayload.workspaceId },
-      orderBy: { name: "asc" },
-    });
+    const items = await listTags(authPayload.workspaceId);
     return { items };
   });
 }

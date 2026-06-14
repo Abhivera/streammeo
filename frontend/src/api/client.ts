@@ -1,8 +1,12 @@
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import type {
   AnalyticsOverview,
   BillingPlan,
   CannedResponse,
+  ChatMessage,
+  ChatSessionDetail,
+  ChatSessionSummary,
   Inbox,
   KbArticle,
   SlaPolicy,
@@ -12,12 +16,17 @@ import type {
   TicketSummary,
   User,
   Workspace,
+  TeamMembersResponse,
+  TeamInvitePreview,
+  AddTeamMemberResponse,
+  InviteTeamMemberResponse,
+  AcceptTeamInviteResponse,
+  WidgetSettings,
+  WidgetSettingsResponse,
 } from "../types";
 
-const baseURL = import.meta.env.VITE_API_URL || "";
-
 export const api = axios.create({
-  baseURL,
+  baseURL: API_BASE_URL,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -49,6 +58,35 @@ export async function register(input: {
     user: User;
     workspace: Workspace;
   }>("/api/v1/auth/register", input);
+  return data;
+}
+
+export async function loginWithGoogle(input: {
+  idToken: string;
+  workspaceName?: string;
+  name?: string;
+}) {
+  const { data } = await api.post<{
+    token: string;
+    user: User;
+    workspace: Workspace;
+  }>("/api/v1/auth/firebase", input);
+  return data;
+}
+
+export async function requestPasswordReset(email: string) {
+  const { data } = await api.post<{ ok: boolean; message: string }>(
+    "/api/v1/auth/forgot-password",
+    { email },
+  );
+  return data;
+}
+
+export async function resetPassword(token: string, password: string) {
+  const { data } = await api.post<{ ok: boolean; message: string }>(
+    "/api/v1/auth/reset-password",
+    { token, password },
+  );
   return data;
 }
 
@@ -214,4 +252,137 @@ export async function deleteKbArticle(id: string) {
 export async function getTicketPortalLink(ticketId: string) {
   const { data } = await api.get<{ url: string }>(`/api/v1/tickets/${ticketId}/portal-link`);
   return data.url;
+}
+
+export async function fetchPortalTicket(token: string) {
+  const { data } = await api.get<{
+    number: number;
+    subject: string;
+    status: string;
+    comments: Array<{ id: string; body: string; createdAt: string; authorName: string }>;
+  }>(`/api/v1/portal/ticket/${token}`);
+  return data;
+}
+
+export async function replyPortalTicket(token: string, message: string) {
+  await api.post(`/api/v1/portal/ticket/${token}/reply`, { message });
+}
+
+export async function fetchPortalCsat(token: string) {
+  const { data } = await api.get<{
+    ticketNumber: number;
+    subject: string;
+    alreadyResponded: boolean;
+  }>(`/api/v1/portal/csat/${token}`);
+  return data;
+}
+
+export async function submitPortalCsat(token: string, input: { rating: number; comment?: string }) {
+  await api.post(`/api/v1/portal/csat/${token}`, input);
+}
+
+export async function fetchChatSessions() {
+  const { data } = await api.get<{ items: ChatSessionSummary[] }>("/api/v1/agent/chat/sessions");
+  return data.items;
+}
+
+export async function fetchChatSession(sessionId: string) {
+  const { data } = await api.get<ChatSessionDetail>(`/api/v1/agent/chat/${sessionId}`);
+  return data;
+}
+
+export async function claimChatSession(sessionId: string) {
+  const { data } = await api.post<{
+    sessionId: string;
+    assignedAgentId: string | null;
+    joinMessage: ChatMessage;
+  }>(`/api/v1/agent/chat/${sessionId}/claim`);
+  return data;
+}
+
+export async function replyChatSession(sessionId: string, message: string) {
+  const { data } = await api.post<{ message: ChatMessage }>(
+    `/api/v1/agent/chat/${sessionId}/reply`,
+    { message },
+  );
+  return data;
+}
+
+export async function closeChatSession(sessionId: string) {
+  const { data } = await api.post<{ ok: boolean }>(`/api/v1/agent/chat/${sessionId}/close`);
+  return data;
+}
+
+export async function convertChatSession(sessionId: string) {
+  const { data } = await api.post<{ ticketId: string; ticketNumber: number; alreadyConverted?: boolean }>(
+    `/api/v1/agent/chat/${sessionId}/convert`,
+  );
+  return data;
+}
+
+export async function fetchTeamMembers() {
+  const { data } = await api.get<TeamMembersResponse>("/api/v1/team/members");
+  return data;
+}
+
+export async function addTeamMember(input: {
+  email: string;
+  name: string;
+  role: "manager" | "agent";
+  password?: string;
+}) {
+  const { data } = await api.post<AddTeamMemberResponse>("/api/v1/team/members", input);
+  return data;
+}
+
+export async function updateTeamMemberRole(userId: string, role: "admin" | "manager" | "agent") {
+  const { data } = await api.patch<{ userId: string; role: string }>(
+    `/api/v1/team/members/${userId}`,
+    { role },
+  );
+  return data;
+}
+
+export async function removeTeamMember(userId: string) {
+  const { data } = await api.delete<{ ok: boolean }>(`/api/v1/team/members/${userId}`);
+  return data;
+}
+
+export async function inviteTeamMember(input: {
+  email: string;
+  name: string;
+  role: "manager" | "agent";
+}) {
+  const { data } = await api.post<InviteTeamMemberResponse>("/api/v1/team/invites", input);
+  return data;
+}
+
+export async function cancelTeamInvite(inviteId: string) {
+  const { data } = await api.delete<{ ok: boolean }>(`/api/v1/team/invites/${inviteId}`);
+  return data;
+}
+
+export async function fetchTeamInvitePreview(token: string) {
+  const { data } = await api.get<TeamInvitePreview>("/api/v1/team/invites/preview", {
+    params: { token },
+  });
+  return data;
+}
+
+export async function acceptTeamInvite(input: { token: string; password?: string }) {
+  const { data } = await api.post<AcceptTeamInviteResponse>("/api/v1/team/invites/accept", input);
+  return data;
+}
+
+export async function fetchWidgetSettings() {
+  const { data } = await api.get<WidgetSettingsResponse>("/api/v1/workspace/widget-settings");
+  return data;
+}
+
+export async function updateWidgetSettings(patch: Partial<WidgetSettings>) {
+  const { data } = await api.patch<WidgetSettingsResponse>(
+    "/api/v1/workspace/widget-settings",
+    patch,
+  );
+  return data;
 }

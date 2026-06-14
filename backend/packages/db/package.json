@@ -7,18 +7,16 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "generate": "prisma generate",
-    "migrate": "prisma migrate dev",
-    "migrate:deploy": "prisma migrate deploy",
-    "seed": "tsx --env-file=../../../.env scripts/seed.ts",
-    "studio": "prisma studio"
+    "create-table": "tsx --env-file=../../../.env scripts/create-table.ts",
+    "seed": "tsx --env-file=../../../.env scripts/seed.ts"
   },
   "dependencies": {
-    "@prisma/client": "^6.9.0"
+    "@aws-sdk/client-dynamodb": "^3.758.0",
+    "@aws-sdk/lib-dynamodb": "^3.758.0",
+    "@streammeo/shared": "*"
   },
   "devDependencies": {
     "bcryptjs": "^2.4.3",
-    "prisma": "^6.9.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }

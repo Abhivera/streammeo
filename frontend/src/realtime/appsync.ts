@@ -1,4 +1,6 @@
-type TicketEvent = {
+import { getAppSyncConfig } from "../config";
+
+export type TicketEvent = {
   workspaceId: string;
   ticketId: string;
   eventType: string;
@@ -10,14 +12,22 @@ type SubscriptionHandlers = {
   onTicketEvent?: (event: TicketEvent) => void;
 };
 
-function getAppSyncConfig(): { url: string; apiKey: string } | null {
-  const url = import.meta.env.VITE_APPSYNC_GRAPHQL_URL?.trim();
-  const apiKey = import.meta.env.VITE_APPSYNC_API_KEY?.trim();
-  if (!url || !apiKey) return null;
-  return { url, apiKey };
+const TICKET_EVENT_SUBSCRIPTION = `subscription OnTicketEvent($workspaceId: ID!) {
+  onTicketEvent(workspaceId: $workspaceId) {
+    workspaceId
+    ticketId
+    eventType
+    payload
+    createdAt
+  }
+}`;
+
+function encodeAppSyncAuth(host: string, apiKey: string): string[] {
+  const header = btoa(JSON.stringify({ host, "x-api-key": apiKey }));
+  const payload = btoa(JSON.stringify({}));
+  return ["graphql-ws", `header-${header}`, `payload-${payload}`];
 }
 
-/** Long-poll style subscription via AppSync HTTP (MVP). Returns cleanup fn. */
 export function subscribeToTicketEvents(
   workspaceId: string,
   handlers: SubscriptionHandlers,
@@ -27,69 +37,78 @@ export function subscribeToTicketEvents(
 
   let cancelled = false;
   let socket: WebSocket | null = null;
+  let reconnectTimer: number | undefined;
 
-  const connect = async (): Promise<void> => {
+  const connect = (): void => {
     if (cancelled) return;
 
-    const res = await fetch(config.url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": config.apiKey,
-      },
-      body: JSON.stringify({
-        query: `subscription OnTicketEvent($workspaceId: ID!) {
-          onTicketEvent(workspaceId: $workspaceId) {
-            workspaceId ticketId eventType payload createdAt
-          }
-        }`,
-        variables: { workspaceId },
-      }),
-    });
+    socket = new WebSocket(config.realtimeUrl, encodeAppSyncAuth(config.host, config.apiKey));
 
-    if (!res.ok || cancelled) return;
-
-    const protocol = config.url.replace(/^http/, "ws");
-    const wsUrl = `${protocol}?header=${encodeURIComponent(
-      btoa(JSON.stringify({ "x-api-key": config.apiKey })),
-    )}&payload=${encodeURIComponent(
-      btoa(
-        JSON.stringify({
-          query: `subscription OnTicketEvent($workspaceId: ID!) {
-            onTicketEvent(workspaceId: $workspaceId) {
-              workspaceId ticketId eventType payload createdAt
-            }
-          }`,
-          variables: { workspaceId },
-        }),
-      ),
-    )}`;
-
-    socket = new WebSocket(wsUrl, "graphql-ws");
+    socket.onopen = () => {
+      socket?.send(JSON.stringify({ type: "connection_init" }));
+    };
 
     socket.onmessage = (msg) => {
+      let data: { type?: string; id?: string; payload?: { data?: { onTicketEvent?: TicketEvent } } };
       try {
-        const data = JSON.parse(msg.data as string) as {
-          payload?: { data?: { onTicketEvent?: TicketEvent } };
-        };
+        data = JSON.parse(msg.data as string) as typeof data;
+      } catch {
+        return;
+      }
+
+      if (data.type === "connection_ack") {
+        socket?.send(
+          JSON.stringify({
+            type: "start",
+            id: "1",
+            payload: {
+              data: JSON.stringify({
+                query: TICKET_EVENT_SUBSCRIPTION,
+                variables: { workspaceId },
+              }),
+              extensions: {
+                authorization: {
+                  host: config.host,
+                  "x-api-key": config.apiKey,
+                },
+              },
+            },
+          }),
+        );
+        return;
+      }
+
+      if (data.type === "data") {
         const event = data.payload?.data?.onTicketEvent;
         if (event) handlers.onTicketEvent?.(event);
-      } catch {
-        // ignore malformed frames
+      }
+
+      if (data.type === "ka") {
+        return;
+      }
+
+      if (data.type === "error" || data.type === "connection_error") {
+        socket?.close();
       }
     };
 
     socket.onclose = () => {
+      socket = null;
       if (!cancelled) {
-        window.setTimeout(() => void connect(), 3000);
+        reconnectTimer = window.setTimeout(connect, 3000);
       }
+    };
+
+    socket.onerror = () => {
+      socket?.close();
     };
   };
 
-  void connect();
+  connect();
 
   return () => {
     cancelled = true;
+    if (reconnectTimer) window.clearTimeout(reconnectTimer);
     socket?.close();
   };
 }

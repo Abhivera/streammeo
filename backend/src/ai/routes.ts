@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { AppConfig } from "../config.js";
 import { createAuthHook } from "../auth/middleware.js";
-import { prisma } from "../db.js";
+import { getWorkspaceById, incrementWorkspaceCounter } from "@streammeo/db";
 import { getTicketById } from "../tickets/service.js";
 import { PLANS, type PlanId } from "@streammeo/shared";
 
@@ -69,9 +69,7 @@ export async function registerAiRoutes(app: FastifyInstance, config: AppConfig):
     const body = suggestSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Invalid input" });
 
-    const workspace = await prisma.workspace.findUnique({
-      where: { id: authPayload.workspaceId },
-    });
+    const workspace = await getWorkspaceById(authPayload.workspaceId);
     if (!workspace) return reply.code(404).send({ error: "Workspace not found" });
 
     const plan = PLANS[workspace.plan as PlanId] ?? PLANS.starter;
@@ -96,10 +94,7 @@ export async function registerAiRoutes(app: FastifyInstance, config: AppConfig):
       comments,
     });
 
-    await prisma.workspace.update({
-      where: { id: workspace.id },
-      data: { aiRepliesUsed: { increment: 1 } },
-    });
+    await incrementWorkspaceCounter(workspace.id, "aiRepliesUsed");
 
     return { suggestion, aiRepliesUsed: workspace.aiRepliesUsed + 1 };
   });
